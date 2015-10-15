@@ -3,18 +3,21 @@
 
 AC_PREREQ([2.69])
 AC_INIT([glueless], [0.1], [ray@isc.org])
-AM_INIT_AUTOMAKE([no-define foreign])
-AM_SILENT_RULES([yes])
+
+AM_INIT_AUTOMAKE(foreign)
+LT_INIT
+
+AC_CONFIG_MACRO_DIR([m4macros])
+
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_FILES([Makefile])
 
-# Checks for programs.
-AC_PROG_CXXCPP
-AC_PROG_CXX
-AC_PROG_CPP
-AC_PROG_CC
+AM_SILENT_RULES([yes])
 
-AC_LANG([C++])
+# Checks for programs.
+AC_PROG_CC
+AC_PROG_CXX
+AC_PROG_MAKE_SET
 
 # Checks for compiler flags.
 DESIRED_FLAGS="-std=c99"
@@ -107,9 +110,6 @@ AC_CHECK_LIB([evldns], [evldns_init], [], AC_MSG_ERROR([libevldns unusable]),[-l
 #
 # Checks for system libraries.
 #
-CPPFLAGS="$AM_CPPFLAGS $CPPFLAGS"
-CFLAGS="$AM_CFLAGS $CFLAGS"
-LDFLAGS="$AM_LDFLAGS $LDFLAGS"
 AC_CHECK_LIB([event], [event_base_new])
 AC_CHECK_LIB([pthread], [pthread_setaffinity_np])
 
