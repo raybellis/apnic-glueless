@@ -28,7 +28,7 @@ static void *instance(void *userdata)
 
 int main(int argc, char *argv[])
 {
-	int fds[] = { 3, 0 };
+	int *fds = bind_to_all(NULL, "5053", 100);
 	ParentHandler handler(fds);
 
 	farm(1, 0, instance, &handler, 0);

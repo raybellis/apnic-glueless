@@ -1,14 +1,12 @@
-ACLOCAL_AMFLAGS = -I m4macros ${ACLOCAL_FLAGS}
-
-SUBDIRS =
+ACLOCAL_AMFLAGS = -I m4 --install
 
 bin_PROGRAMS = \
 	glueless-parent
 
 glueless_parent_SOURCES = \
-	glueless-parent.cc \
-	base.cc base.h \
-	process.c process.h \
-	evutils.c evutils.h \
-	utils.c utils.h \
-	logging.c
+	src/glueless-parent.cc \
+	src/base.cc src/base.h \
+	src/process.c src/process.h \
+	src/evutils.c src/evutils.h \
+	src/utils.c src/utils.h \
+	src/logging.c

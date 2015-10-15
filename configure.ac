@@ -1,18 +1,17 @@
 #                                               -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
-AC_PREREQ([2.69])
 AC_INIT([glueless], [0.1], [ray@isc.org])
-
-AM_INIT_AUTOMAKE(foreign)
-LT_INIT
-
-AC_CONFIG_MACRO_DIR([m4macros])
+AC_PREREQ([2.69])
 
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_FILES([Makefile])
+AC_CONFIG_AUX_DIR([build-aux])
+AC_CONFIG_MACRO_DIR([m4])
+AC_CONFIG_SRC_DIR([src/base.cc])
 
-AM_SILENT_RULES([yes])
+AM_INIT_AUTOMAKE([foreign subdir-object])
+LT_INIT
 
 # Checks for programs.
 AC_PROG_CC
@@ -20,6 +19,7 @@ AC_PROG_CXX
 AC_PROG_MAKE_SET
 
 # Checks for compiler flags.
+
 DESIRED_FLAGS="-std=c99"
 for flag in $DESIRED_FLAGS; do
   AS_COMPILER_FLAG([$flag], [CFLAGS="$CFLAGS $flag"])
