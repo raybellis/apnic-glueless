@@ -8,9 +8,10 @@ AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_FILES([Makefile])
 AC_CONFIG_AUX_DIR([build-aux])
 AC_CONFIG_MACRO_DIR([m4])
-AC_CONFIG_SRC_DIR([src/base.cc])
+AC_CONFIG_SRCDIR([src/base.cc])
 
-AM_INIT_AUTOMAKE([foreign subdir-object])
+AM_INIT_AUTOMAKE([foreign subdir-objects])
+AM_SILENT_RULES([yes])
 LT_INIT
 
 # Checks for programs.
