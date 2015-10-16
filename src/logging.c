@@ -20,6 +20,8 @@
 #include <sys/socket.h>
 #include <netdb.h>
 #include <evldns.h>
+#include <stdlib.h>
+#include <unistd.h>
 
 void log_request(evldns_server_request *srq, const ldns_rdf *qname, ldns_rr_type qtype, ldns_rr_class qclass)
 {
@@ -71,7 +73,7 @@ void log_request(evldns_server_request *srq, const ldns_rdf *qname, ldns_rr_type
 		srq->wire_resplen);
 
 	// log it here
-	// ...
+	write(1, logbuffer, n);
 	
 	free(qname_str);
 	free(qtype_str);

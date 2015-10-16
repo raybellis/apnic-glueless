@@ -14,40 +14,19 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-#ifndef __BASE_H
-#define __BASE_H
-
-#include <string>
+#ifndef __LOGGING_H
+#define __LOGGING_H
 
 #include <evldns.h>
 
-class Base {
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-private:
-	event_base			*ev_base;
+void log_request(evldns_server_request *srq, const ldns_rdf *qname, ldns_rr_type qtype, ldns_rr_class qclass);
 
-protected:
-	ldns_dnssec_zone	*zone;
-	evldns_server		*ev_server;
-	ldns_rdf			*origin;
-	unsigned int		origin_count;
+#ifdef __cplusplus
+}
+#endif
 
-public:
-	Base(const int *fds, const std::string& domain, const std::string& zonefile);
-	~Base();
-
-public:
-	void start();
-};
-
-class SignedBase : public Base {
-
-protected:
-	ldns_key_list		*keys;
-
-public:
-	SignedBase(const int *fds, const std::string& domain, const std::string& zonefile, const std::string& keyfile);
-	~SignedBase();
-};
-
-#endif /* __BASE_H */
+#endif /* __LOGGING_H */

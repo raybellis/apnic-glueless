@@ -14,15 +14,35 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include <stdexcept>
+
 #include "base.h"
 #include "evutils.h"
+#include "utils.h"
 
-Base::Base(const int *fds)
+Base::Base(const int *fds, const std::string& domain, const std::string& zonefile)
 {
 	ev_base = event_base_new();
-	evldns_server *p = evldns_add_server(ev_base);
-	evldns_add_server_ports(p, fds);
-	evldns_add_callback(p, NULL, LDNS_RR_CLASS_ANY, LDNS_RR_TYPE_ANY, query_check, NULL);
+	ev_server = evldns_add_server(ev_base);
+	evldns_add_server_ports(ev_server, fds);
+	evldns_add_callback(ev_server, NULL, LDNS_RR_CLASS_ANY, LDNS_RR_TYPE_ANY, query_check, NULL);
+
+	origin = ldns_dname_new_frm_str(domain.c_str());
+	if (!origin) {
+		throw std::runtime_error("couldn't parse domain");
+	}
+	origin_count = ldns_dname_label_count(origin);
+
+	zone = util_load_zone(origin, zonefile.c_str());
+	if (!zone) {
+		throw std::runtime_error("zone file load failed");
+	}
+}
+
+Base::~Base()
+{
+	ldns_dnssec_zone_deep_free(zone);
+	ldns_rdf_deep_free(origin);
 }
 
 void Base::start()
@@ -30,9 +50,21 @@ void Base::start()
 	(void)event_base_dispatch(ev_base);
 }
 
-void Base::evldns_callback(evldns_server_request *srq, void *userdata,
-        ldns_rdf *qname, ldns_rr_type qtype, ldns_rr_class qclass)
+SignedBase::SignedBase(const int *fds, const std::string& domain, const std::string& zonefile, const std::string& keyfile)
+	: Base(fds, domain, zonefile)
 {
-	Base *base = static_cast<Base *>(userdata);
-	base->callback(srq, qname, qtype, qclass);
+	keys = util_load_key(origin, keyfile.c_str());
+	if (!keys) {
+		throw std::runtime_error("key file load failed");
+	}
+
+	ldns_status status = util_sign_zone(zone, keys);
+	if (status != LDNS_STATUS_OK) {
+		throw std::runtime_error("zone signing failed");
+	}
+}
+
+SignedBase::~SignedBase()
+{
+	ldns_key_list_free(keys);
 }

@@ -9,4 +9,4 @@ glueless_parent_SOURCES = \
 	src/process.c src/process.h \
 	src/evutils.c src/evutils.h \
 	src/utils.c src/utils.h \
-	src/logging.c
+	src/logging.c sr/logging.h

@@ -72,7 +72,7 @@ static void make_threads(int threads, routine fn, void *data, int flags)
 
 void farm(int forks, int threads, routine fn, void *data, int flags)
 {
-	if (forks < 1) {
+	if (forks <= 1) {
 		make_threads(threads, fn, data, flags);
 	} else {
 

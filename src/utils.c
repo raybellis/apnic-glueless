@@ -73,3 +73,18 @@ ldns_status util_sign_zone(ldns_dnssec_zone *zone, ldns_key_list *keys)
 
 	return status;
 }
+
+void rr_list_cat_dnssec_rrs_clone(ldns_rr_list *rr_list, ldns_dnssec_rrs *rrs)
+{
+	 while (rrs) {
+		  ldns_rr_list_push_rr(rr_list, ldns_rr_clone(rrs->rr));
+		  rrs = rrs->next;
+	 }
+}
+
+void rr_list_cat_rr_list_clone(ldns_rr_list *dst, ldns_rr_list *src)
+{
+	 for (int i = 0, n = ldns_rr_list_rr_count(src); i < n; ++i) {
+		  ldns_rr_list_push_rr(dst, ldns_rr_clone(ldns_rr_list_rr(src, i)));
+	 }
+}

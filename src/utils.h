@@ -14,8 +14,8 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-#ifndef __LDNSUTILS_H
-#define __LDNSUTILS_H
+#ifndef __UTILS_H
+#define __UTILS_H
 
 #include <ldns/ldns.h>
 
@@ -26,9 +26,12 @@ extern "C" {
 ldns_dnssec_zone *util_load_zone(const ldns_rdf *origin, const char *zonefile);
 ldns_key_list *util_load_key(const ldns_rdf *origin, const char *keyfile);
 ldns_status util_sign_zone(ldns_dnssec_zone *zone, ldns_key_list *keys);
+void rr_list_cat_dnssec_rrs_clone(ldns_rr_list *rr_list, ldns_dnssec_rrs *rrs); /* TODO: error checks */
+void rr_list_cat_rr_list_clone(ldns_rr_list *dst, ldns_rr_list *src); /* TODO: error checks */
+
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* __LDNSUTILS_H */
+#endif /* __UTILS_H */
