@@ -94,20 +94,12 @@ void ParentHandler::referral_callback(evldns_server_request *srq, ldns_rdf *qnam
 			ldns_rr *clone = ldns_rr_clone(ns->rr);
 
 			// replace owner
-			ldns_rdf_deep_free(ldns_rr_owner(clone));
-			ldns_rr_set_owner(clone, ldns_rdf_clone(child));
+			LDNS_rr_replace_owner(clone, child);
 
 			// replace any wildcard RDATA on above RRs
-			for (int i = 0, n = ldns_rr_rd_count(clone); i < n; ++i) {
-				ldns_rdf *rdf = ldns_rr_rdf(clone, i);
-				if (rdf && ldns_dname_is_wildcard(rdf)) {
-					ldns_rdf *tmp = ldns_dname_left_chop(rdf);
-					ldns_rdf *subst = ldns_dname_label(child, 0);
-					ldns_dname_cat(subst, tmp);
-					ldns_rdf_deep_free(ldns_rr_set_rdf(clone, subst, i));
-					ldns_rdf_deep_free(tmp);
-				}
-			}
+			ldns_rdf *child_label = ldns_dname_label(child, 0);
+			LDNS_rr_wildcard_substitute(clone, child_label);
+			ldns_rdf_deep_free(child_label);
 
 			ldns_rr_list_push_rr(authority, clone);
 			ns = ns->next;

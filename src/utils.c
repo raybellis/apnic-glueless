@@ -74,7 +74,7 @@ ldns_status util_sign_zone(ldns_dnssec_zone *zone, ldns_key_list *keys)
 	return status;
 }
 
-void rr_list_cat_dnssec_rrs_clone(ldns_rr_list *rr_list, ldns_dnssec_rrs *rrs)
+void LDNS_rr_list_cat_dnssec_rrs_clone(ldns_rr_list *rr_list, ldns_dnssec_rrs *rrs)
 {
 	 while (rrs) {
 		  ldns_rr_list_push_rr(rr_list, ldns_rr_clone(rrs->rr));
@@ -82,9 +82,29 @@ void rr_list_cat_dnssec_rrs_clone(ldns_rr_list *rr_list, ldns_dnssec_rrs *rrs)
 	 }
 }
 
-void rr_list_cat_rr_list_clone(ldns_rr_list *dst, ldns_rr_list *src)
+void LDNS_rr_list_cat_rr_list_clone(ldns_rr_list *dst, ldns_rr_list *src)
 {
 	 for (int i = 0, n = ldns_rr_list_rr_count(src); i < n; ++i) {
 		  ldns_rr_list_push_rr(dst, ldns_rr_clone(ldns_rr_list_rr(src, i)));
 	 }
+}
+
+void LDNS_rr_replace_owner(ldns_rr *rr, ldns_rdf *new_owner)
+{
+	ldns_rdf_deep_free(ldns_rr_owner(rr));
+	ldns_rr_set_owner(rr, ldns_rdf_clone(new_owner));
+}
+
+void LDNS_rr_wildcard_substitute(ldns_rr *rr, ldns_rdf *replace)
+{
+	for (int i = 0, n = ldns_rr_rd_count(rr); i < n; ++i) {
+		ldns_rdf *rdf = ldns_rr_rdf(rr, i);
+		if (rdf && ldns_dname_is_wildcard(rdf)) {
+			ldns_rdf *rhs = ldns_dname_left_chop(rdf);
+			ldns_rdf *new_rdf = ldns_dname_cat_clone(replace, rhs);
+			ldns_rr_set_rdf(rr, new_rdf, i);
+			ldns_rdf_deep_free(rhs);
+			ldns_rdf_deep_free(rdf);
+		}
+	}
 }
