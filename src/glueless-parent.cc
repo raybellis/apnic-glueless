@@ -67,6 +67,11 @@ void ParentHandler::referral_callback(evldns_server_request *srq, ldns_rdf *qnam
 {
 	ldns_pkt *req = srq->request;
 	ldns_pkt *resp = srq->response = evldns_response(req, LDNS_RCODE_NOERROR);
+	ldns_rr_list *answer = ldns_pkt_answer(resp);
+	ldns_rr_list *authority = ldns_pkt_authority(resp);
+
+	bool edns = ldns_pkt_edns(req);
+	bool dnssec_ok = edns && ldns_pkt_edns_do(req);
 
 	// extract first subdomain label
 	unsigned int label_count;
@@ -79,9 +84,24 @@ void ParentHandler::referral_callback(evldns_server_request *srq, ldns_rdf *qnam
 		return;
 	}
 
+	ldns_rr_list *ds_list = ldns_rr_list_new();
+	for (int i = 0, n = ldns_key_list_key_count(keys); i < n; ++i) {
+		ldns_rr *key_rr = ldns_key2rr(ldns_key_list_key(keys, i));
+		LDNS_rr_replace_owner(key_rr, child);
+		ldns_rr *ds = ldns_key_rr2ds(key_rr, LDNS_SHA1);
+		ldns_rr_list_push_rr(ds_list, ds);
+		ldns_rr_free(key_rr);
+	}
+
 	if (label_count == 1 && qtype == LDNS_RR_TYPE_DS) {
+
+		ldns_rr_list_cat(answer, ds_list);
+		if (dnssec_ok) {
+			ldns_rr_list_cat(answer, ldns_sign_public(ds_list, keys));
+		}
+		ldns_pkt_set_aa(resp, 1);
+
 	} else {
-		ldns_rr_list *authority = ldns_pkt_authority(resp);
 		ldns_rdf *wild = ldns_dname_new_frm_str("*");
 		ldns_dname_cat(wild, origin);
 		ldns_dnssec_rrsets *rrsets = ldns_dnssec_zone_find_rrset(zone, wild, LDNS_RR_TYPE_NS);
@@ -104,12 +124,17 @@ void ParentHandler::referral_callback(evldns_server_request *srq, ldns_rdf *qnam
 			ldns_rr_list_push_rr(authority, clone);
 			ns = ns->next;
 		}
-
 		ldns_rdf_deep_free(wild);
+
+		if (dnssec_ok) {
+			ldns_rr_list_cat(authority, ds_list);
+			ldns_rr_list_cat(authority, ldns_sign_public(ds_list, keys));
+		}
 	}
 
-	ldns_pkt_set_ancount(resp, ldns_rr_list_rr_count(ldns_pkt_answer(resp)));
-	ldns_pkt_set_nscount(resp, ldns_rr_list_rr_count(ldns_pkt_authority(resp)));
+	ldns_pkt_set_ancount(resp, ldns_rr_list_rr_count(answer));
+	ldns_pkt_set_nscount(resp, ldns_rr_list_rr_count(authority));
+	ldns_pkt_set_edns_do(resp, dnssec_ok);
 
 	ldns_rdf_deep_free(child);
 }
