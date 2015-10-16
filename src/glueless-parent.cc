@@ -135,6 +135,9 @@ void ParentHandler::referral_callback(evldns_server_request *srq, ldns_rdf *qnam
 	ldns_pkt_set_ancount(resp, ldns_rr_list_rr_count(answer));
 	ldns_pkt_set_nscount(resp, ldns_rr_list_rr_count(authority));
 	ldns_pkt_set_edns_do(resp, dnssec_ok);
+	if (edns) {
+		ldns_pkt_set_edns_udp_size(resp, 4096);
+	}
 
 	ldns_rdf_deep_free(child);
 }
