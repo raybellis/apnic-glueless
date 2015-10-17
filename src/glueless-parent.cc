@@ -7,7 +7,8 @@
 
 class ParentHandler : public SignedBase {
 private:
-	ldns_rdf*		sibling;
+	ldns_rdf			*sibling;
+	ldns_dnssec_rrsets	*child_nsset;
 
 private:
 	ldns_rdf *get_child(ldns_rdf *qname, unsigned int& label_count);
@@ -37,6 +38,16 @@ ParentHandler::ParentHandler(
   : SignedBase(fds, domain, zonefile, keyfile)
 {
 	this->sibling = ldns_dname_new_frm_str(sibling.c_str());
+
+	// find the wildcard NS set in the zone and remember it
+	ldns_rdf *wild = ldns_dname_new_frm_str("*");
+	ldns_dname_cat(wild, origin);
+	child_nsset = ldns_dnssec_zone_find_rrset(zone, wild, LDNS_RR_TYPE_NS);
+	ldns_rdf_deep_free(wild);
+	if (!child_nsset) {
+		throw std::runtime_error("zone should contain wildcard NS set");
+	}
+
 	evldns_add_callback(ev_server, NULL, LDNS_RR_CLASS_IN, LDNS_RR_TYPE_ANY, dispatch, this);
 }
 
@@ -70,8 +81,7 @@ void ParentHandler::referral_callback(evldns_server_request *srq, ldns_rdf *qnam
 	ldns_rr_list *answer = ldns_pkt_answer(resp);
 	ldns_rr_list *authority = ldns_pkt_authority(resp);
 
-	bool edns = ldns_pkt_edns(req);
-	bool dnssec_ok = edns && ldns_pkt_edns_do(req);
+	bool dnssec_ok = ldns_pkt_edns_do(req);
 
 	// extract first subdomain label
 	unsigned int label_count;
@@ -102,14 +112,7 @@ void ParentHandler::referral_callback(evldns_server_request *srq, ldns_rdf *qnam
 		ldns_pkt_set_aa(resp, 1);
 
 	} else {
-		ldns_rdf *wild = ldns_dname_new_frm_str("*");
-		ldns_dname_cat(wild, origin);
-		ldns_dnssec_rrsets *rrsets = ldns_dnssec_zone_find_rrset(zone, wild, LDNS_RR_TYPE_NS);
-		if (!rrsets) {
-			throw std::runtime_error("zone should contain wildcard NS set");
-		}
-
-		ldns_dnssec_rrs *ns = rrsets->rrs;
+		ldns_dnssec_rrs *ns = child_nsset->rrs;
 		while (ns) {
 			ldns_rr *clone = ldns_rr_clone(ns->rr);
 
@@ -124,7 +127,6 @@ void ParentHandler::referral_callback(evldns_server_request *srq, ldns_rdf *qnam
 			ldns_rr_list_push_rr(authority, clone);
 			ns = ns->next;
 		}
-		ldns_rdf_deep_free(wild);
 
 		if (dnssec_ok) {
 			ldns_rr_list_cat(authority, ds_list);
