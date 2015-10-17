@@ -19,8 +19,8 @@ public:
 
 public:
 	void main_callback(evldns_server_request *srq, ldns_rdf *qname, ldns_rr_type qtype);
-	void apex_callback(evldns_server_request *srq, ldns_rdf *qname, ldns_rr_type qtype);
-	void referral_callback(evldns_server_request *srq, ldns_rdf *qname, ldns_rr_type qtype);
+	void apex_callback(ldns_rdf *qname, ldns_rr_type qtype, bool dnssec_ok, ldns_pkt *resp);
+	void referral_callback(ldns_rdf *qname, ldns_rr_type qtype, bool dnssec_ok, ldns_pkt *resp);
 };
 
 static void dispatch(evldns_server_request *srq, void *userdata, ldns_rdf *qname, ldns_rr_type qtype, ldns_rr_class qclass)
@@ -58,42 +58,59 @@ ParentHandler::~ParentHandler()
 
 void ParentHandler::main_callback(evldns_server_request *srq, ldns_rdf *qname, ldns_rr_type qtype)
 {
-	bool is_apex = (ldns_dname_compare(qname, origin) == 0);
-	bool is_sub = !is_apex && ldns_dname_is_subdomain(qname, origin);
-
-	if (is_apex) {
-		apex_callback(srq, qname, qtype);
-	} else if (is_sub) {
-		referral_callback(srq, qname, qtype);
-	}
-}
-
-void ParentHandler::apex_callback(evldns_server_request *srq, ldns_rdf *qname, ldns_rr_type qtype)
-{
-	ldns_pkt *req = srq->request;
-	ldns_pkt *resp = srq->response = evldns_response(req, LDNS_RCODE_SERVFAIL);
-}
-
-void ParentHandler::referral_callback(evldns_server_request *srq, ldns_rdf *qname, ldns_rr_type qtype)
-{
 	ldns_pkt *req = srq->request;
 	ldns_pkt *resp = srq->response = evldns_response(req, LDNS_RCODE_NOERROR);
 	ldns_rr_list *answer = ldns_pkt_answer(resp);
 	ldns_rr_list *authority = ldns_pkt_authority(resp);
-
 	bool dnssec_ok = ldns_pkt_edns_do(req);
+
+	if (ldns_dname_compare(qname, origin) == 0) {
+		apex_callback(qname, qtype, dnssec_ok, resp);
+	} else if (ldns_dname_is_subdomain(qname, origin)) {
+		referral_callback(qname, qtype, dnssec_ok, resp);
+	} else {
+		throw std::runtime_error("unreachable query code path");
+	}
+
+	ldns_pkt_set_ancount(resp, ldns_rr_list_rr_count(answer));
+	ldns_pkt_set_nscount(resp, ldns_rr_list_rr_count(authority));
+}
+
+void ParentHandler::apex_callback(ldns_rdf *qname, ldns_rr_type qtype, bool dnssec_ok, ldns_pkt *resp)
+{
+	ldns_rr_list *answer = ldns_pkt_answer(resp);
+	ldns_rr_list *authority = ldns_pkt_authority(resp);
+	ldns_dnssec_rrsets *rrsets = ldns_dnssec_zone_find_rrset(zone, qname, qtype);
+	if (rrsets) {
+		LDNS_rr_list_cat_dnssec_rrs_clone(answer, rrsets->rrs);
+		if (dnssec_ok) {
+			LDNS_rr_list_cat_dnssec_rrs_clone(answer, rrsets->signatures);
+		}
+	} else {
+		// TODO negative response
+	}
+
+	ldns_pkt_set_aa(resp, 1);
+}
+
+void ParentHandler::referral_callback(ldns_rdf *qname, ldns_rr_type qtype, bool dnssec_ok, ldns_pkt *resp)
+{
+	ldns_rr_list *answer = ldns_pkt_answer(resp);
+	ldns_rr_list *authority = ldns_pkt_authority(resp);
 
 	// extract first subdomain label
 	unsigned int label_count;
 	ldns_rdf *child = get_child(qname, label_count);
 
 	// there isn't really a wildcard here
+	// TODO: proper NSEC denial of existence
 	if (ldns_dname_is_wildcard(child)) {
 		ldns_pkt_set_rcode(resp, LDNS_RCODE_REFUSED);
 		ldns_rdf_deep_free(child);
 		return;
 	}
 
+	// synthesize the DS record(s)
 	ldns_rr_list *ds_list = ldns_rr_list_new();
 	for (int i = 0, n = ldns_key_list_key_count(keys); i < n; ++i) {
 		ldns_rr *key_rr = ldns_key2rr(ldns_key_list_key(keys, i));
@@ -104,12 +121,13 @@ void ParentHandler::referral_callback(evldns_server_request *srq, ldns_rdf *qnam
 	}
 
 	if (label_count == 1 && qtype == LDNS_RR_TYPE_DS) {
+		// explict request for a child DS record
 
 		ldns_rr_list_cat(answer, ds_list);
 		if (dnssec_ok) {
 			ldns_rr_list_cat(answer, ldns_sign_public(ds_list, keys));
 		}
-		ldns_pkt_set_aa(resp, 1);
+		ldns_pkt_set_aa(resp, 1);	// DS answers are authoritative
 
 	} else {
 		ldns_dnssec_rrs *ns = child_nsset->rrs;
@@ -128,15 +146,12 @@ void ParentHandler::referral_callback(evldns_server_request *srq, ldns_rdf *qnam
 			ns = ns->next;
 		}
 
+		// include DS records and RRSIGs thereof on referrals
 		if (dnssec_ok) {
 			ldns_rr_list_cat(authority, ds_list);
 			ldns_rr_list_cat(authority, ldns_sign_public(ds_list, keys));
 		}
 	}
-
-	ldns_pkt_set_ancount(resp, ldns_rr_list_rr_count(answer));
-	ldns_pkt_set_nscount(resp, ldns_rr_list_rr_count(authority));
-
 	ldns_rdf_deep_free(child);
 }
 
