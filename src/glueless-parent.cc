@@ -23,14 +23,13 @@
 
 class ParentHandler : public SignedBase {
 private:
-	ldns_rdf			*sibling;
 	ldns_dnssec_rrsets	*child_nsset;
 
 private:
 	ldns_rdf *get_child(ldns_rdf *qname, unsigned int& label_count);
 
 public:
-	ParentHandler(const int *fds, const std::string& domain, const std::string& sibling, const std::string& zonefile, const std::string& keyfile);
+	ParentHandler(const int *fds, const std::string& domain, const std::string& zonefile, const std::string& keyfile);
 	~ParentHandler();
 
 public:
@@ -48,13 +47,10 @@ static void dispatch(evldns_server_request *srq, void *userdata, ldns_rdf *qname
 ParentHandler::ParentHandler(
 	const int* fds,
 	const std::string& domain,
-	const std::string& sibling,
 	const std::string& zonefile,
 	const std::string& keyfile)
   : SignedBase(fds, domain, zonefile, keyfile)
 {
-	this->sibling = ldns_dname_new_frm_str(sibling.c_str());
-
 	// find the wildcard NS set in the zone and remember it
 	ldns_rdf *wild = ldns_dname_new_frm_str("*");
 	ldns_dname_cat(wild, origin);
@@ -72,7 +68,6 @@ ParentHandler::ParentHandler(
 
 ParentHandler::~ParentHandler()
 {
-	ldns_rdf_deep_free(sibling);
 }
 
 void ParentHandler::main_callback(evldns_server_request *srq, ldns_rdf *qname, ldns_rr_type qtype)
@@ -248,11 +243,10 @@ int main(int argc, char *argv[])
 	const char	*hostname = NULL;
 	const char	*port = "5053";
 	const char	*domain = "tst.nxdomain.net";
-	const char	*sibling = "oob.nxdomain.net";
 	const char	*zonefile = "data/zone.tst.nxdomain.net";
 	const char	*keyfile = "data/Ktst.nxdomain.net.+005+29517.private";
 
-	ParentHandler handler(bind_to_all(hostname, port, 100), domain, sibling, zonefile, keyfile);
+	ParentHandler handler(bind_to_all(hostname, port, 100), domain, zonefile, keyfile);
 
 	farm(n_forks, n_threads, start_instance, &handler, 0);
 
