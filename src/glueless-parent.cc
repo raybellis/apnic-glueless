@@ -63,10 +63,10 @@ ParentZone::~ParentZone()
 
 void ParentZone::main_callback(evldns_server_request *srq, ldns_rdf *qname, ldns_rr_type qtype)
 {
-	ldns_pkt *req = srq->request;
-	ldns_pkt *resp = srq->response = evldns_response(req, LDNS_RCODE_NOERROR);
-	ldns_rr_list *answer = ldns_pkt_answer(resp);
-	ldns_rr_list *authority = ldns_pkt_authority(resp);
+	auto req = srq->request;
+	auto resp = srq->response = evldns_response(req, LDNS_RCODE_NOERROR);
+	auto answer = ldns_pkt_answer(resp);
+	auto authority = ldns_pkt_authority(resp);
 	bool dnssec_ok = ldns_pkt_edns_do(req);
 
 	if (ldns_dname_compare(qname, origin) == 0) {
@@ -126,10 +126,10 @@ void ParentZone::referral_callback(ldns_rdf *qname, ldns_rr_type qtype, bool dns
 	ldns_rdf *child = get_child(qname, label_count);
 
 	// there isn't really a wildcard here
-	// TODO: proper NSEC denial of existence
 	if (ldns_dname_is_wildcard(child)) {
 		ldns_pkt_set_rcode(resp, LDNS_RCODE_NXDOMAIN);
 
+		// proper NSEC denial of existence
 		if (dnssec_ok) {
 			// almost minimally covering NSEC
 			auto prev = ldns_dname_new_frm_str(")");

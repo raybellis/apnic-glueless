@@ -24,7 +24,7 @@ extern "C" {
 #endif
 
 void query_check(evldns_server_request *srq, void* /* user_data */,
-                 ldns_rdf* /* qname */,
+				 ldns_rdf* /* qname */,
 				 ldns_rr_type qtype,
 				 ldns_rr_class qclass);
 

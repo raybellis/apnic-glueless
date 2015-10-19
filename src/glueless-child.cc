@@ -23,6 +23,9 @@
 
 class ChildZone {
 
+	ldns_rdf				*origin;
+	unsigned int			origin_count;
+
 protected:
 	const std::string		domain;
 	const std::string		zonefile;
@@ -30,6 +33,7 @@ protected:
 
 public:
 	ChildZone(const std::string& domain, const std::string& zonefile, const std::string& keyfile);
+	~ChildZone();
 
 public:
 	void main_callback(evldns_server_request *srq, ldns_rdf *qname, ldns_rr_type qtype);
@@ -49,6 +53,13 @@ public:
 ChildZone::ChildZone(const std::string& domain, const std::string& zonefile, const std::string& keyfile)
 	: domain(domain), zonefile(zonefile), keyfile(keyfile)
 {
+	origin = ldns_dname_new_frm_str(domain.c_str());		// TODO: error check
+	origin_count = ldns_dname_label_count(origin);
+}
+
+ChildZone::~ChildZone()
+{
+	ldns_rdf_deep_free(origin);
 }
 
 // complete zone needs to be synthesised on the fly
@@ -59,7 +70,7 @@ DynamicZone::DynamicZone(
 	const std::string& keyfile)
   : SignedZone(domain, zonefile, keyfile)
 {
-	// find the NS set in the zone and fix it up
+	// TODO: find the NS set in the zone and fix it up
 
 	// the zone's OK to sign now
 	sign();
@@ -132,9 +143,21 @@ void DynamicZone::sub_callback(ldns_pkt *resp, ldns_rdf *qname, ldns_rr_type qty
 
 void ChildZone::main_callback(evldns_server_request *srq, ldns_rdf *qname, ldns_rr_type qtype)
 {
-	// construct and sign dynamic zone with correct origin
-	DynamicZone dynamic("foo." + domain, zonefile, keyfile);
-	dynamic.main_callback(srq, qname, qtype);
+	if (ldns_dname_is_subdomain(qname, origin)) {
+		// construct and sign dynamic zone with correct origin
+		unsigned int qname_count = ldns_dname_label_count(qname);
+		auto label_count = qname_count - origin_count;
+		auto child = ldns_dname_clone_from(qname, label_count - 1);
+		auto child_str = ldns_rdf2str(child);
+		ldns_rdf_deep_free(child);
+
+		DynamicZone dynamic(child_str, zonefile, keyfile);
+		dynamic.main_callback(srq, qname, qtype);
+
+		free(child_str);
+	} else {
+		srq->response = evldns_response(srq->request, LDNS_RCODE_REFUSED);
+	}
 }
 
 static void dispatch(evldns_server_request *srq, void *userdata, ldns_rdf *qname, ldns_rr_type qtype, ldns_rr_class qclass)
@@ -152,9 +175,9 @@ static void *start_instance(void *userdata)
 {
 	auto data = reinterpret_cast<InstanceData *>(userdata);
 
-    EVLDNSBase server(data->fds);
-    server.add_callback(dispatch, data->zone);
-    server.start();
+	EVLDNSBase server(data->fds);
+	server.add_callback(dispatch, data->zone);
+	server.start();
 
 	return NULL;
 }

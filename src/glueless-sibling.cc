@@ -129,7 +129,7 @@ static void dispatch(evldns_server_request *srq, void *userdata, ldns_rdf *qname
 }
 
 struct InstanceData {
-	int         *fds;
+	int		 *fds;
 	SiblingZone	*zone;
 };
 
@@ -137,11 +137,11 @@ static void *start_instance(void *userdata)
 {
 	auto data = reinterpret_cast<InstanceData *>(userdata);
 
-    EVLDNSBase server(data->fds);
-    server.add_callback(dispatch, data->zone);
-    server.start();
+	EVLDNSBase server(data->fds);
+	server.add_callback(dispatch, data->zone);
+	server.start();
 
-    return NULL;
+	return NULL;
 }
 
 int main(int argc, char *argv[])
