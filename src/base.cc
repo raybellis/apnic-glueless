@@ -20,13 +20,30 @@
 #include "evutils.h"
 #include "utils.h"
 
-Base::Base(const int *fds, const std::string& domain, const std::string& zonefile)
+EVLDNSBase::EVLDNSBase(const int *fds)
 {
 	ev_base = event_base_new();
 	ev_server = evldns_add_server(ev_base);
 	evldns_add_server_ports(ev_server, fds);
 	evldns_add_callback(ev_server, NULL, LDNS_RR_CLASS_ANY, LDNS_RR_TYPE_ANY, query_check, NULL);
+}
 
+EVLDNSBase::~EVLDNSBase()
+{
+}
+
+void EVLDNSBase::add_callback(evldns_callback callback, void *userdata)
+{
+	evldns_add_callback(ev_server, NULL, LDNS_RR_CLASS_IN, LDNS_RR_TYPE_ANY, callback, userdata);
+}
+
+void EVLDNSBase::start()
+{
+	(void)event_base_dispatch(ev_base);
+}
+
+Zone::Zone(const std::string& domain, const std::string& zonefile)
+{
 	origin = ldns_dname_new_frm_str(domain.c_str());
 	if (!origin) {
 		throw std::runtime_error("couldn't parse domain");
@@ -39,19 +56,13 @@ Base::Base(const int *fds, const std::string& domain, const std::string& zonefil
 	}
 }
 
-Base::~Base()
-{
+Zone::~Zone() {
 	ldns_dnssec_zone_deep_free(zone);
 	ldns_rdf_deep_free(origin);
 }
 
-void Base::start()
-{
-	(void)event_base_dispatch(ev_base);
-}
-
-SignedBase::SignedBase(const int *fds, const std::string& domain, const std::string& zonefile, const std::string& keyfile)
-	: Base(fds, domain, zonefile)
+SignedZone::SignedZone(const std::string& domain, const std::string& zonefile, const std::string& keyfile)
+	: Zone(domain, zonefile)
 {
 	keys = util_load_key(origin, keyfile.c_str());
 	if (!keys) {
@@ -59,7 +70,7 @@ SignedBase::SignedBase(const int *fds, const std::string& domain, const std::str
 	}
 }
 
-void SignedBase::sign()
+void SignedZone::sign()
 {
 	ldns_status status = util_sign_zone(zone, keys);
 	if (status != LDNS_STATUS_OK) {
@@ -67,7 +78,7 @@ void SignedBase::sign()
 	}
 }
 
-SignedBase::~SignedBase()
+SignedZone::~SignedZone()
 {
 	ldns_key_list_free(keys);
 }

@@ -21,33 +21,41 @@
 
 #include <evldns.h>
 
-class Base {
+class EVLDNSBase {
 
 private:
 	event_base			*ev_base;
-
-protected:
-	ldns_dnssec_zone	*zone;
 	evldns_server		*ev_server;
-	ldns_rdf			*origin;
-	unsigned int		origin_count;
 
 public:
-	Base(const int *fds, const std::string& domain, const std::string& zonefile);
-	~Base();
+	EVLDNSBase(const int *fds);
+	~EVLDNSBase();
 
 public:
+	void add_callback(evldns_callback callback, void *userdata);
 	void start();
 };
 
-class SignedBase : public Base {
+class Zone {
+
+protected:
+	ldns_dnssec_zone	*zone;
+	ldns_rdf			*origin;
+	unsigned int		 origin_count;
+
+public:
+	Zone(const std::string& domain, const std::string& zonefile);
+	~Zone();
+};
+
+class SignedZone : public Zone {
 
 protected:
 	ldns_key_list		*keys;
 
 public:
-	SignedBase(const int *fds, const std::string& domain, const std::string& zonefile, const std::string& keyfile);
-	~SignedBase();
+	SignedZone(const std::string& domain, const std::string& zonefile, const std::string& keyfile);
+	~SignedZone();
 
 public:
 	void sign();

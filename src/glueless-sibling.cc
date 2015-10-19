@@ -21,13 +21,13 @@
 #include "process.h"
 #include "logging.h"
 
-class SiblingHandler : public Base {
+class SiblingZone : public Zone {
 private:
 	ldns_rdf			*wild;
 
 public:
-	SiblingHandler(const int *fds, const std::string& domain, const std::string& zonefile);
-	~SiblingHandler();
+	SiblingZone(const std::string& domain, const std::string& zonefile);
+	~SiblingZone();
 
 public:
 	void main_callback(evldns_server_request *srq, ldns_rdf *qname, ldns_rr_type qtype);
@@ -35,35 +35,26 @@ public:
 	void sub_callback(ldns_rdf *qname, ldns_rr_type qtype, ldns_pkt *resp);
 };
 
-static void dispatch(evldns_server_request *srq, void *userdata, ldns_rdf *qname, ldns_rr_type qtype, ldns_rr_class qclass)
-{
-	SiblingHandler *handler = static_cast<SiblingHandler *>(userdata);
-	handler->main_callback(srq, qname, qtype);
-}
-
-SiblingHandler::SiblingHandler(
-	const int* fds,
+SiblingZone::SiblingZone(
 	const std::string& domain,
 	const std::string& zonefile)
-  : Base(fds, domain, zonefile)
+  : Zone(domain, zonefile)
 {
 	wild = ldns_dname_new_frm_str("*");
 	ldns_dname_cat(wild, origin);
-
-	evldns_add_callback(ev_server, NULL, LDNS_RR_CLASS_IN, LDNS_RR_TYPE_ANY, dispatch, this);
 }
 
-SiblingHandler::~SiblingHandler()
+SiblingZone::~SiblingZone()
 {
 	ldns_rdf_deep_free(wild);
 }
 
-void SiblingHandler::main_callback(evldns_server_request *srq, ldns_rdf *qname, ldns_rr_type qtype)
+void SiblingZone::main_callback(evldns_server_request *srq, ldns_rdf *qname, ldns_rr_type qtype)
 {
-	ldns_pkt *req = srq->request;
-	ldns_pkt *resp = srq->response = evldns_response(req, LDNS_RCODE_NOERROR);
-	ldns_rr_list *answer = ldns_pkt_answer(resp);
-	ldns_rr_list *authority = ldns_pkt_authority(resp);
+	auto req = srq->request;
+	auto resp = srq->response = evldns_response(req, LDNS_RCODE_NOERROR);
+	auto answer = ldns_pkt_answer(resp);
+	auto authority = ldns_pkt_authority(resp);
 
 	if (ldns_dname_compare(qname, origin) == 0) {
 		apex_callback(qname, qtype, resp);
@@ -76,8 +67,8 @@ void SiblingHandler::main_callback(evldns_server_request *srq, ldns_rdf *qname, 
 
 	// include the SOA if no answers resulted
 	if (ldns_rr_list_rr_count(answer) == 0) {
-		ldns_dnssec_name *soa = zone->soa;
-		ldns_dnssec_rrsets *rrsets = ldns_dnssec_name_find_rrset(soa, LDNS_RR_TYPE_SOA);
+		auto soa = zone->soa;
+		auto rrsets = ldns_dnssec_name_find_rrset(soa, LDNS_RR_TYPE_SOA);
 		LDNS_rr_list_cat_dnssec_rrs_clone(authority, rrsets->rrs);
 	}
 
@@ -86,24 +77,24 @@ void SiblingHandler::main_callback(evldns_server_request *srq, ldns_rdf *qname, 
 	ldns_pkt_set_aa(resp, 1);
 }
 
-void SiblingHandler::apex_callback(ldns_rdf *qname, ldns_rr_type qtype, ldns_pkt *resp)
+void SiblingZone::apex_callback(ldns_rdf *qname, ldns_rr_type qtype, ldns_pkt *resp)
 {
-	ldns_rr_list *answer = ldns_pkt_answer(resp);
-	ldns_rr_list *authority = ldns_pkt_authority(resp);
-	ldns_dnssec_rrsets *rrsets = ldns_dnssec_zone_find_rrset(zone, qname, qtype);
+	auto answer = ldns_pkt_answer(resp);
+	auto authority = ldns_pkt_authority(resp);
+	auto rrsets = ldns_dnssec_zone_find_rrset(zone, qname, qtype);
 	if (rrsets) {
 		LDNS_rr_list_cat_dnssec_rrs_clone(answer, rrsets->rrs);
 	} else {
-		ldns_dnssec_name *soa = zone->soa;
+		auto soa = zone->soa;
 		rrsets = ldns_dnssec_name_find_rrset(soa, LDNS_RR_TYPE_SOA);
 		LDNS_rr_list_cat_dnssec_rrs_clone(authority, rrsets->rrs);
 	}
 }
 
-void SiblingHandler::sub_callback(ldns_rdf *qname, ldns_rr_type qtype, ldns_pkt *resp)
+void SiblingZone::sub_callback(ldns_rdf *qname, ldns_rr_type qtype, ldns_pkt *resp)
 {
-	ldns_rr_list *answer = ldns_pkt_answer(resp);
-	ldns_rr_list *authority = ldns_pkt_authority(resp);
+	auto answer = ldns_pkt_answer(resp);
+	auto authority = ldns_pkt_authority(resp);
 
 	// make sure there's no more than one label and extract that label
 	unsigned int qname_count = ldns_dname_label_count(qname);
@@ -111,42 +102,61 @@ void SiblingHandler::sub_callback(ldns_rdf *qname, ldns_rr_type qtype, ldns_pkt 
 		ldns_pkt_set_rcode(resp, LDNS_RCODE_NXDOMAIN);
 		return;
 	}
-	ldns_rdf *sub_label = ldns_dname_label(qname, 0);
+	auto sub_label = ldns_dname_label(qname, 0);
 
 	// make sure that label isn't a wildcard
 	if (ldns_dname_is_wildcard(sub_label)) {
 		ldns_pkt_set_rcode(resp, LDNS_RCODE_NXDOMAIN);
 	} else {
 		// check for wildcard entry
-		ldns_dnssec_rrsets *rrsets = ldns_dnssec_zone_find_rrset(zone, wild, qtype);
+		auto rrsets = ldns_dnssec_zone_find_rrset(zone, wild, qtype);
+
+		// TODO: replace owner names
 		if (rrsets) {
 			LDNS_rr_list_cat_dnssec_rrs_clone(answer, rrsets->rrs);
 		}
+
+		// TODO: add stuffing
 	}
 
 	ldns_rdf_deep_free(sub_label);
 }
 
+static void dispatch(evldns_server_request *srq, void *userdata, ldns_rdf *qname, ldns_rr_type qtype, ldns_rr_class qclass)
+{
+	auto handler = static_cast<SiblingZone *>(userdata);
+	handler->main_callback(srq, qname, qtype);
+}
+
+struct InstanceData {
+	int         *fds;
+	SiblingZone	*zone;
+};
+
 static void *start_instance(void *userdata)
 {
-	Base *handler = static_cast<Base *>(userdata);
-	handler->start();
+	auto data = reinterpret_cast<InstanceData *>(userdata);
 
-	return NULL;
+    EVLDNSBase server(data->fds);
+    server.add_callback(dispatch, data->zone);
+    server.start();
+
+    return NULL;
 }
 
 int main(int argc, char *argv[])
 {
-	int			n_forks = 0;
-	int			n_threads = 0;
-	const char	*hostname = NULL;
-	const char	*port = "5055";
-	const char	*domain = "oob.nxdomain.net";
-	const char	*zonefile = "data/zone.oob.nxdomain.net";
+	int				n_forks = 0;
+	int				n_threads = 0;
+	const char		*hostname = NULL;
+	const char		*port = "5055";
+	const char		*domain = "oob.nxdomain.net";
+	const char		*zonefile = "data/zone.oob.nxdomain.net";
 
-	SiblingHandler handler(bind_to_all(hostname, port, 100), domain, zonefile);
+	SiblingZone		zone(domain, zonefile);
+	InstanceData	data = { bind_to_all(hostname, port, 100), &zone };
 
-	farm(n_forks, n_threads, start_instance, &handler, 0);
+	farm(n_forks, n_threads, start_instance, &data, 0);
 
 	return 0;
 }
