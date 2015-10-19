@@ -87,7 +87,22 @@ void ParentHandler::apex_callback(ldns_rdf *qname, ldns_rr_type qtype, bool dnss
 			LDNS_rr_list_cat_dnssec_rrs_clone(answer, rrsets->signatures);
 		}
 	} else {
-		// TODO negative response
+		// NSEC query requires special handling
+		// NB: zone requires an RR at '\000' to produce
+		// the desired minimal enclosing NSEC (RFC 4470)
+		if (qtype == LDNS_RR_TYPE_NSEC) {
+			ldns_rr_list_push_rr(answer, ldns_rr_clone(zone->soa->nsec));
+			if (dnssec_ok) {
+				LDNS_rr_list_cat_dnssec_rrs_clone(answer, zone->soa->nsec_signatures);
+			}
+		} else {
+			ldns_rr_list_push_rr(authority, ldns_rr_clone(zone->soa->nsec));
+			LDNS_rr_list_cat_dnssec_rrs_clone(authority, zone->soa->rrsets->rrs);
+			if (dnssec_ok) {
+				LDNS_rr_list_cat_dnssec_rrs_clone(authority, zone->soa->rrsets->signatures);
+				LDNS_rr_list_cat_dnssec_rrs_clone(authority, zone->soa->nsec_signatures);
+			}
+		}
 	}
 
 	ldns_pkt_set_aa(resp, 1);
