@@ -1,5 +1,4 @@
-@			IN	SOA		( ns1 admin 2015101501 1800 900 604800 86400 )
-			IN	NS		ns1
-ns1			IN	A		10.1.2.5
+@			IN	SOA		( ns-tst.nxdomain.net. admin 2015101501 1800 900 604800 86400 )
+			IN	NS		ns-tst.nxdomain.net.
 *			IN	NS		*.oob.nxdomain.net.
 \000		IN	TXT		"do not remove this - needed for NSEC processing"

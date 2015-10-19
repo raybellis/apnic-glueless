@@ -57,7 +57,10 @@ SignedBase::SignedBase(const int *fds, const std::string& domain, const std::str
 	if (!keys) {
 		throw std::runtime_error("key file load failed");
 	}
+}
 
+void SignedBase::sign()
+{
 	ldns_status status = util_sign_zone(zone, keys);
 	if (status != LDNS_STATUS_OK) {
 		throw std::runtime_error("zone signing failed");

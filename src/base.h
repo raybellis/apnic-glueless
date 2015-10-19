@@ -48,6 +48,9 @@ protected:
 public:
 	SignedBase(const int *fds, const std::string& domain, const std::string& zonefile, const std::string& keyfile);
 	~SignedBase();
+
+public:
+	void sign();
 };
 
 #endif /* __BASE_H */

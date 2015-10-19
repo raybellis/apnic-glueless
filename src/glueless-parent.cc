@@ -14,6 +14,8 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include <stdexcept>
+
 #include "base.h"
 #include "utils.h"
 #include "process.h"
@@ -62,6 +64,9 @@ ParentHandler::ParentHandler(
 		throw std::runtime_error("zone should contain wildcard NS set");
 	}
 
+	// the zone's OK to sign now
+	sign();
+
 	evldns_add_callback(ev_server, NULL, LDNS_RR_CLASS_IN, LDNS_RR_TYPE_ANY, dispatch, this);
 }
 
@@ -83,7 +88,7 @@ void ParentHandler::main_callback(evldns_server_request *srq, ldns_rdf *qname, l
 	} else if (ldns_dname_is_subdomain(qname, origin)) {
 		referral_callback(qname, qtype, dnssec_ok, resp);
 	} else {
-		throw std::runtime_error("unreachable query code path");
+		ldns_pkt_set_rcode(resp, LDNS_RCODE_REFUSED);
 	}
 
 	ldns_pkt_set_ancount(resp, ldns_rr_list_rr_count(answer));
@@ -104,17 +109,19 @@ void ParentHandler::apex_callback(ldns_rdf *qname, ldns_rr_type qtype, bool dnss
 		// NSEC query requires special handling
 		// NB: zone requires an RR at '\000' to produce
 		// the desired minimal enclosing NSEC (RFC 4470)
+		ldns_dnssec_name *soa = zone->soa;
+		rrsets = ldns_dnssec_name_find_rrset(soa, LDNS_RR_TYPE_SOA);
 		if (qtype == LDNS_RR_TYPE_NSEC) {
-			ldns_rr_list_push_rr(answer, ldns_rr_clone(zone->soa->nsec));
+			ldns_rr_list_push_rr(answer, ldns_rr_clone(soa->nsec));
 			if (dnssec_ok) {
-				LDNS_rr_list_cat_dnssec_rrs_clone(answer, zone->soa->nsec_signatures);
+				LDNS_rr_list_cat_dnssec_rrs_clone(answer, soa->nsec_signatures);
 			}
 		} else {
-			ldns_rr_list_push_rr(authority, ldns_rr_clone(zone->soa->nsec));
-			LDNS_rr_list_cat_dnssec_rrs_clone(authority, zone->soa->rrsets->rrs);
+			ldns_rr_list_push_rr(authority, ldns_rr_clone(soa->nsec));
+			LDNS_rr_list_cat_dnssec_rrs_clone(authority, rrsets->rrs);
 			if (dnssec_ok) {
-				LDNS_rr_list_cat_dnssec_rrs_clone(authority, zone->soa->rrsets->signatures);
-				LDNS_rr_list_cat_dnssec_rrs_clone(authority, zone->soa->nsec_signatures);
+				LDNS_rr_list_cat_dnssec_rrs_clone(authority, soa->nsec_signatures);
+				LDNS_rr_list_cat_dnssec_rrs_clone(authority, rrsets->signatures);
 			}
 		}
 	}
@@ -134,7 +141,38 @@ void ParentHandler::referral_callback(ldns_rdf *qname, ldns_rr_type qtype, bool 
 	// there isn't really a wildcard here
 	// TODO: proper NSEC denial of existence
 	if (ldns_dname_is_wildcard(child)) {
-		ldns_pkt_set_rcode(resp, LDNS_RCODE_REFUSED);
+		ldns_pkt_set_rcode(resp, LDNS_RCODE_NXDOMAIN);
+
+		if (dnssec_ok) {
+			// almost minimally covering NSEC
+			ldns_rdf *prev = ldns_dname_new_frm_str(")");
+			ldns_rdf *next = ldns_dname_new_frm_str("+");
+			ldns_dname_cat(prev, origin);
+			ldns_dname_cat(next, origin);
+			ldns_rr *nsec = ldns_create_nsec(prev, next, NULL);
+
+			// NSEC list
+			ldns_rr_list *nsecs = ldns_rr_list_new();
+			ldns_rr_list_push_rr(nsecs, nsec);
+
+			// signed and added to response
+			ldns_rr_list *rrsigs = ldns_sign_public(nsecs, keys);
+			ldns_rr_list_push_rr_list(authority, nsecs);
+			ldns_rr_list_push_rr_list(authority, rrsigs);
+
+			// include the SOA too
+			ldns_dnssec_name *soa = zone->soa;
+			ldns_dnssec_rrsets *rrsets = ldns_dnssec_name_find_rrset(soa, LDNS_RR_TYPE_SOA);
+			LDNS_rr_list_cat_dnssec_rrs_clone(authority, rrsets->rrs);
+			LDNS_rr_list_cat_dnssec_rrs_clone(authority, rrsets->signatures);
+
+			// free memory
+			ldns_rr_list_free(rrsigs);
+			ldns_rr_list_free(nsecs);
+			ldns_rdf_deep_free(next);
+			ldns_rdf_deep_free(prev);
+		}
+
 		ldns_rdf_deep_free(child);
 		return;
 	}
