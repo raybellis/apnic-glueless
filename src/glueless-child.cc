@@ -21,7 +21,7 @@
 #include "process.h"
 #include "logging.h"
 
-class ParentHandler : public SignedBase {
+class ChildHandler : public SignedBase {
 private:
 	ldns_dnssec_rrsets	*child_nsset;
 
@@ -29,8 +29,8 @@ private:
 	ldns_rdf *get_child(ldns_rdf *qname, unsigned int& label_count);
 
 public:
-	ParentHandler(const int *fds, const std::string& domain, const std::string& zonefile, const std::string& keyfile);
-	~ParentHandler();
+	ChildHandler(const int *fds, const std::string& domain, const std::string& zonefile, const std::string& keyfile);
+	~ChildHandler();
 
 public:
 	void main_callback(evldns_server_request *srq, ldns_rdf *qname, ldns_rr_type qtype);
@@ -40,25 +40,21 @@ public:
 
 static void dispatch(evldns_server_request *srq, void *userdata, ldns_rdf *qname, ldns_rr_type qtype, ldns_rr_class qclass)
 {
-	ParentHandler *handler = static_cast<ParentHandler *>(userdata);
+	ChildHandler *handler = static_cast<ChildHandler *>(userdata);
 	handler->main_callback(srq, qname, qtype);
 }
 
-ParentHandler::ParentHandler(
+// TODO:
+// complete zone needs to be synthesised on the fly
+
+ChildHandler::ChildHandler(
 	const int* fds,
 	const std::string& domain,
 	const std::string& zonefile,
 	const std::string& keyfile)
   : SignedBase(fds, domain, zonefile, keyfile)
 {
-	// find the wildcard NS set in the zone and remember it
-	ldns_rdf *wild = ldns_dname_new_frm_str("*");
-	ldns_dname_cat(wild, origin);
-	child_nsset = ldns_dnssec_zone_find_rrset(zone, wild, LDNS_RR_TYPE_NS);
-	ldns_rdf_deep_free(wild);
-	if (!child_nsset) {
-		throw std::runtime_error("zone should contain wildcard NS set");
-	}
+	// find the NS set in the zone and fix it up
 
 	// the zone's OK to sign now
 	sign();
@@ -66,11 +62,11 @@ ParentHandler::ParentHandler(
 	evldns_add_callback(ev_server, NULL, LDNS_RR_CLASS_IN, LDNS_RR_TYPE_ANY, dispatch, this);
 }
 
-ParentHandler::~ParentHandler()
+ChildHandler::~ChildHandler()
 {
 }
 
-void ParentHandler::main_callback(evldns_server_request *srq, ldns_rdf *qname, ldns_rr_type qtype)
+void ChildHandler::main_callback(evldns_server_request *srq, ldns_rdf *qname, ldns_rr_type qtype)
 {
 	ldns_pkt *req = srq->request;
 	ldns_pkt *resp = srq->response = evldns_response(req, LDNS_RCODE_NOERROR);
@@ -90,7 +86,7 @@ void ParentHandler::main_callback(evldns_server_request *srq, ldns_rdf *qname, l
 	ldns_pkt_set_nscount(resp, ldns_rr_list_rr_count(authority));
 }
 
-void ParentHandler::apex_callback(ldns_rdf *qname, ldns_rr_type qtype, bool dnssec_ok, ldns_pkt *resp)
+void ChildHandler::apex_callback(ldns_rdf *qname, ldns_rr_type qtype, bool dnssec_ok, ldns_pkt *resp)
 {
 	ldns_rr_list *answer = ldns_pkt_answer(resp);
 	ldns_rr_list *authority = ldns_pkt_authority(resp);
@@ -112,11 +108,11 @@ void ParentHandler::apex_callback(ldns_rdf *qname, ldns_rr_type qtype, bool dnss
 				LDNS_rr_list_cat_dnssec_rrs_clone(answer, soa->nsec_signatures);
 			}
 		} else {
-			LDNS_rr_list_cat_dnssec_rrs_clone(authority, rrsets->rrs);
 			ldns_rr_list_push_rr(authority, ldns_rr_clone(soa->nsec));
+			LDNS_rr_list_cat_dnssec_rrs_clone(authority, rrsets->rrs);
 			if (dnssec_ok) {
-				LDNS_rr_list_cat_dnssec_rrs_clone(authority, rrsets->signatures);
 				LDNS_rr_list_cat_dnssec_rrs_clone(authority, soa->nsec_signatures);
+				LDNS_rr_list_cat_dnssec_rrs_clone(authority, rrsets->signatures);
 			}
 		}
 	}
@@ -124,7 +120,7 @@ void ParentHandler::apex_callback(ldns_rdf *qname, ldns_rr_type qtype, bool dnss
 	ldns_pkt_set_aa(resp, 1);
 }
 
-void ParentHandler::referral_callback(ldns_rdf *qname, ldns_rr_type qtype, bool dnssec_ok, ldns_pkt *resp)
+void ChildHandler::referral_callback(ldns_rdf *qname, ldns_rr_type qtype, bool dnssec_ok, ldns_pkt *resp)
 {
 	ldns_rr_list *answer = ldns_pkt_answer(resp);
 	ldns_rr_list *authority = ldns_pkt_authority(resp);
@@ -217,7 +213,7 @@ void ParentHandler::referral_callback(ldns_rdf *qname, ldns_rr_type qtype, bool 
 	ldns_rdf_deep_free(child);
 }
 
-ldns_rdf* ParentHandler::get_child(ldns_rdf *qname, unsigned int& label_count)
+ldns_rdf* ChildHandler::get_child(ldns_rdf *qname, unsigned int& label_count)
 {
 	unsigned int qname_count = ldns_dname_label_count(qname);
 	if (qname_count <= origin_count) {
@@ -241,12 +237,12 @@ int main(int argc, char *argv[])
 	int			n_forks = 0;
 	int			n_threads = 0;
 	const char	*hostname = NULL;
-	const char	*port = "5053";
+	const char	*port = "5054";
 	const char	*domain = "tst.nxdomain.net";
-	const char	*zonefile = "data/zone.tst.nxdomain.net";
+	const char	*zonefile = "data/zone.wild.tst.nxdomain.net";
 	const char	*keyfile = "data/Ktst.nxdomain.net.+005+29517.private";
 
-	ParentHandler handler(bind_to_all(hostname, port, 100), domain, zonefile, keyfile);
+	ChildHandler handler(bind_to_all(hostname, port, 100), domain, zonefile, keyfile);
 
 	farm(n_forks, n_threads, start_instance, &handler, 0);
 

@@ -1,0 +1,4 @@
+@			IN	SOA		( *.oob.nxdomain.net. admin 2015101501 1800 900 604800 86400 )
+			IN	NS		*.oob.nxdomain.net.
+			IN	A		127.0.0.1
+			IN	AAAA	::1

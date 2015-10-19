@@ -2,7 +2,8 @@ ACLOCAL_AMFLAGS = -I m4 --install
 
 bin_PROGRAMS = \
 	glueless-parent \
-	glueless-child
+	glueless-child \
+	glueless-sibling
 
 EXTRAS = \
 	src/base.cc src/base.h \
@@ -17,4 +18,8 @@ glueless_parent_SOURCES = \
 
 glueless_child_SOURCES = \
 	src/glueless-child.cc \
+	$(EXTRAS)
+
+glueless_sibling_SOURCES = \
+	src/glueless-sibling.cc \
 	$(EXTRAS)
