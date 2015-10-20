@@ -165,7 +165,7 @@ void ParentZone::referral_callback(ldns_rdf *qname, ldns_rr_type qtype, bool dns
 	}
 
 	// synthesize the DS record(s)
-	ldns_rr_list *ds_list = ldns_rr_list_new();
+	auto ds_list = ldns_rr_list_new();
 	for (int i = 0, n = ldns_key_list_key_count(keys); i < n; ++i) {
 		auto key_rr = ldns_key2rr(ldns_key_list_key(keys, i));
 		LDNS_rr_replace_owner(key_rr, child);
@@ -201,10 +201,14 @@ void ParentZone::referral_callback(ldns_rdf *qname, ldns_rr_type qtype, bool dns
 
 		// include DS records and RRSIGs thereof on referrals
 		if (dnssec_ok) {
+			auto ds_rrsigs = ldns_sign_public(ds_list, keys);
 			ldns_rr_list_cat(authority, ds_list);
-			ldns_rr_list_cat(authority, ldns_sign_public(ds_list, keys));
+			ldns_rr_list_cat(authority, ds_rrsigs);
+			ldns_rr_list_free(ds_rrsigs); // nb: not deep, RRs moved
 		}
 	}
+
+	ldns_rr_list_free(ds_list);
 	ldns_rdf_deep_free(child);
 }
 
