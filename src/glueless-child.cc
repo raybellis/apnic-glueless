@@ -53,7 +53,10 @@ public:
 ChildZone::ChildZone(const std::string& domain, const std::string& zonefile, const std::string& keyfile)
 	: domain(domain), zonefile(zonefile), keyfile(keyfile)
 {
-	origin = ldns_dname_new_frm_str(domain.c_str());		// TODO: error check
+	origin = ldns_dname_new_frm_str(domain.c_str());
+	if (!origin) {
+		throw std::runtime_error("couldn't parse domain name");
+	}
 	origin_count = ldns_dname_label_count(origin);
 }
 
@@ -70,7 +73,19 @@ DynamicZone::DynamicZone(
 	const std::string& keyfile)
   : SignedZone(domain, zonefile, keyfile)
 {
-	// TODO: find the NS set in the zone and fix it up
+	// find any wildcard rdata in the apex and fix it up
+	auto lhs = ldns_dname_label(origin, 0);
+	auto apex = zone->soa;
+	auto rrsets = apex->rrsets;
+	while (rrsets) {
+		auto rrs = rrsets->rrs;
+		while (rrs) {
+			LDNS_rr_wildcard_substitute(rrs->rr, lhs);
+			rrs = rrs->next;
+		}
+		rrsets = rrsets->next;
+	}
+	ldns_rdf_deep_free(lhs);
 
 	// the zone's OK to sign now
 	sign();
