@@ -111,9 +111,16 @@ void SiblingZone::sub_callback(ldns_rdf *qname, ldns_rr_type qtype, ldns_pkt *re
 		// check for wildcard entry
 		auto rrsets = ldns_dnssec_zone_find_rrset(zone, wild, qtype);
 
-		// TODO: replace owner names
+		// copy the entry, replacing the owner name with the question
 		if (rrsets) {
-			LDNS_rr_list_cat_dnssec_rrs_clone(answer, rrsets->rrs);
+			auto rrs = rrsets->rrs;
+			while (rrs) {
+				auto rr = ldns_rr_clone(rrs->rr);
+				ldns_rdf_deep_free(ldns_rr_owner(rr));
+				ldns_rr_set_owner(rr, ldns_rdf_clone(qname));
+				ldns_rr_list_push_rr(answer, rr);
+				rrs = rrs->next;
+			}
 		}
 
 		// TODO: add stuffing
