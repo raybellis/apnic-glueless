@@ -57,7 +57,9 @@ static void make_threads(int threads, routine fn, void *data, int flags)
 	} else {
 		pthread_t		pt[threads];
 		pthread_attr_t	attr;
+#ifdef __linux__
 		int ncpus = sysconf(_SC_NPROCESSORS_ONLN);
+#endif
 
 		/* start the desired number of threads */
 		pthread_attr_init(&attr);
