@@ -14,15 +14,23 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
+#ifdef __linux__
 #define _GNU_SOURCE
+#endif
+
+#include "config.h"
 #include <pthread.h>
 #include <unistd.h>
 #include <sched.h>
-#include <wait.h>
 #include <stdio.h>
-#include "config.h"
+#if defined(HAVE_SYS_WAIT_H)
+#include <sys/wait.h>
+#elif defined(HAVE_WAIT_H)
+#include <wait.h>
+#endif
 #include "process.h"
 
+#ifdef __linux__
 static void getcpu(cpu_set_t* cpus, int n)
 {
 	int count = CPU_COUNT(cpus);
@@ -40,6 +48,7 @@ static void getcpu(cpu_set_t* cpus, int n)
 
 	fprintf(stderr, "unexpectedly ran out of CPUs");
 }
+#endif
 
 static void make_threads(int threads, routine fn, void *data, int flags)
 {
@@ -54,12 +63,14 @@ static void make_threads(int threads, routine fn, void *data, int flags)
 		pthread_attr_init(&attr);
 		for (int i = 0; i < threads; ++i) {
 			pthread_create(&pt[i], &attr, fn, data);
+#ifdef __linux__
 			if (flags & FARM_AFFINITY_THREAD) {
 				cpu_set_t	cpus;
 				CPU_ZERO(&cpus);
 				CPU_SET(i % ncpus, &cpus);
 				pthread_setaffinity_np(pt[i], sizeof(cpus), &cpus);
 			}
+#endif
 		}
 		pthread_attr_destroy(&attr);
 
@@ -84,12 +95,14 @@ void farm(int forks, int threads, routine fn, void *data, int flags)
 			} else if (pid < 0) {	/* error */
 				perror("fork");
 			} else {
+#ifdef __linux__
 				if (flags & FARM_AFFINITY_FORK) {
 					cpu_set_t cpus;
 					sched_getaffinity(pid, sizeof(cpus), &cpus);
 					getcpu(&cpus, i);
 					sched_setaffinity(pid, sizeof(cpus), &cpus);
 				}
+#endif
 			}
 		}
 

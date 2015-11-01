@@ -115,7 +115,7 @@ AC_CHECK_LIB([event], [event_base_new])
 AC_CHECK_LIB([pthread], [pthread_setaffinity_np])
 
 # Checks for header files.
-AC_CHECK_HEADERS([fcntl.h stdlib.h string.h sys/socket.h unistd.h])
+AC_CHECK_HEADERS([fcntl.h stdlib.h string.h sys/socket.h unistd.h wait.h sys/wait.h])
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_TYPE_SIZE_T
