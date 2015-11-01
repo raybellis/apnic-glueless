@@ -1,17 +1,20 @@
 Dependencies:
 
 - evldns commit b64db4fc8d95b2d5a959c982aa59e6d6fdac35fd or later)
-- 'rpb-dev' branch of patched ldns (https://github.com/raybellis/ldns)
+- 'dev-rpb' branch of patched ldns (https://github.com/raybellis/ldns)
 - libevent2
 
 To build from Git:
 
-% libtoolize --install
 % autoreconf --install
 % ./configure --with-ldns=<path...> --with-evldns=<path...>
 % make
 
-Zone names, paths, keys, etc, currently hard-coded in each daemon.
+Zone names, paths, keys, etc, currently hard-coded in each daemon:
 
-Process farm code (process.[ch]) is currently Linux specific due to
-use of pthread_set_affinity_np()
+port 5053 - parent server
+     5054 - child server
+     5055 - OOB sibling server
+
+Some process farm code (process.c and .h) is currently Linux specific
+due to use of pthread_set_affinity_np()
