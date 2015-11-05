@@ -199,13 +199,13 @@ static void *start_instance(void *userdata)
 
 int main(int argc, char *argv[])
 {
-	int				n_forks = 0;
+	int				n_forks = 4;
 	int				n_threads = 0;
 	const char		*hostname = NULL;
-	const char		*port = "5054";
-	const char		*domain = "tst.nxdomain.net";
-	const char		*zonefile = "data/zone.wild.tst.nxdomain.net";
-	const char		*keyfile = "data/Ktst.nxdomain.net.+005+29517.private";
+	const char		*port = "53";
+	const char		*domain = "test.dotnxdomain.net";
+	const char		*zonefile = "data/zone.wild.test.dotnxdomain.net";
+	const char		*keyfile = "data/Ktest.dotnxdomain.net.private";
 
 	ChildZone		zone(domain, zonefile, keyfile);
 	InstanceData	data = { bind_to_all(hostname, port, 100), &zone };

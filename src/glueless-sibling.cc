@@ -113,6 +113,8 @@ void SiblingZone::sub_callback(ldns_rdf *qname, ldns_rr_type qtype, ldns_pkt *re
 
 		// copy the entry, replacing the owner name with the question
 		if (rrsets) {
+			// TODO: add optional stuffing before the answer here
+
 			auto rrs = rrsets->rrs;
 			while (rrs) {
 				auto rr = ldns_rr_clone(rrs->rr);
@@ -121,9 +123,10 @@ void SiblingZone::sub_callback(ldns_rdf *qname, ldns_rr_type qtype, ldns_pkt *re
 				ldns_rr_list_push_rr(answer, rr);
 				rrs = rrs->next;
 			}
-		}
 
-		// TODO: add stuffing
+			// TODO: add optional stuffing after the answer (or in other sections?)
+			// NULL RRTYPE?
+		}
 	}
 
 	ldns_rdf_deep_free(sub_label);
@@ -153,12 +156,12 @@ static void *start_instance(void *userdata)
 
 int main(int argc, char *argv[])
 {
-	int				n_forks = 0;
+	int				n_forks = 4;
 	int				n_threads = 0;
 	const char		*hostname = NULL;
-	const char		*port = "5055";
-	const char		*domain = "oob.nxdomain.net";
-	const char		*zonefile = "data/zone.oob.nxdomain.net";
+	const char		*port = "53";
+	const char		*domain = "oob.dashnxdomain.net";
+	const char		*zonefile = "data/zone.oob.dashnxdomain.net";
 
 	SiblingZone		zone(domain, zonefile);
 	InstanceData	data = { bind_to_all(hostname, port, 100), &zone };
