@@ -32,6 +32,9 @@ public:
 	ParentZone(const std::string& domain, const std::string& zonefile, const std::string& keyfile);
 	~ParentZone();
 
+private:
+	void deny_wildcard(ldns_pkt *resp);
+
 public:
 	void main_callback(evldns_server_request *srq, ldns_rdf *qname, ldns_rr_type qtype);
 	void apex_callback(ldns_rdf *qname, ldns_rr_type qtype, bool dnssec_ok, ldns_pkt *resp);
@@ -75,7 +78,6 @@ void ParentZone::main_callback(evldns_server_request *srq, ldns_rdf *qname, ldns
 		referral_callback(qname, qtype, dnssec_ok, resp);
 	} else {
 		ldns_pkt_set_rcode(resp, LDNS_RCODE_REFUSED);
-		return;
 	}
 
 	ldns_pkt_set_ancount(resp, ldns_rr_list_rr_count(answer));
@@ -116,53 +118,60 @@ void ParentZone::apex_callback(ldns_rdf *qname, ldns_rr_type qtype, bool dnssec_
 	ldns_pkt_set_aa(resp, 1);
 }
 
-void ParentZone::referral_callback(ldns_rdf *qname, ldns_rr_type qtype, bool dnssec_ok, ldns_pkt *resp)
+// proper NSEC denial of existence
+void ParentZone::deny_wildcard(ldns_pkt *resp)
 {
-	auto answer = ldns_pkt_answer(resp);
 	auto authority = ldns_pkt_authority(resp);
 
+	// almost minimally covering NSEC
+	auto prev = ldns_dname_new_frm_str(")");
+	auto next = ldns_dname_new_frm_str("+");
+	ldns_dname_cat(prev, origin);
+	ldns_dname_cat(next, origin);
+	auto nsec = ldns_create_nsec(prev, next, NULL);
+
+	// NSEC list
+	auto nsecs = ldns_rr_list_new();
+	ldns_rr_list_push_rr(nsecs, nsec);
+
+	// signed and added to response
+	auto rrsigs = ldns_sign_public(nsecs, keys);
+	ldns_rr_list_push_rr_list(authority, nsecs);
+	ldns_rr_list_push_rr_list(authority, rrsigs);
+
+	// include the SOA too
+	auto soa = zone->soa;
+	auto rrsets = ldns_dnssec_name_find_rrset(soa, LDNS_RR_TYPE_SOA);
+	LDNS_rr_list_cat_dnssec_rrs_clone(authority, rrsets->rrs);
+	LDNS_rr_list_cat_dnssec_rrs_clone(authority, rrsets->signatures);
+
+	// free memory
+	ldns_rr_list_free(rrsigs);
+	ldns_rr_list_free(nsecs);
+	ldns_rdf_deep_free(next);
+	ldns_rdf_deep_free(prev);
+}
+
+void ParentZone::referral_callback(ldns_rdf *qname, ldns_rr_type qtype, bool dnssec_ok, ldns_pkt *resp)
+{
 	// extract first subdomain label
 	unsigned int label_count;
 	ldns_rdf *child = get_child(qname, label_count);
 
 	// there isn't really a wildcard here
 	if (ldns_dname_is_wildcard(child)) {
+
 		ldns_pkt_set_rcode(resp, LDNS_RCODE_NXDOMAIN);
-
-		// proper NSEC denial of existence
 		if (dnssec_ok) {
-			// almost minimally covering NSEC
-			auto prev = ldns_dname_new_frm_str(")");
-			auto next = ldns_dname_new_frm_str("+");
-			ldns_dname_cat(prev, origin);
-			ldns_dname_cat(next, origin);
-			auto nsec = ldns_create_nsec(prev, next, NULL);
-
-			// NSEC list
-			auto nsecs = ldns_rr_list_new();
-			ldns_rr_list_push_rr(nsecs, nsec);
-
-			// signed and added to response
-			auto rrsigs = ldns_sign_public(nsecs, keys);
-			ldns_rr_list_push_rr_list(authority, nsecs);
-			ldns_rr_list_push_rr_list(authority, rrsigs);
-
-			// include the SOA too
-			auto soa = zone->soa;
-			auto rrsets = ldns_dnssec_name_find_rrset(soa, LDNS_RR_TYPE_SOA);
-			LDNS_rr_list_cat_dnssec_rrs_clone(authority, rrsets->rrs);
-			LDNS_rr_list_cat_dnssec_rrs_clone(authority, rrsets->signatures);
-
-			// free memory
-			ldns_rr_list_free(rrsigs);
-			ldns_rr_list_free(nsecs);
-			ldns_rdf_deep_free(next);
-			ldns_rdf_deep_free(prev);
+			deny_wildcard(resp);
 		}
 
 		ldns_rdf_deep_free(child);
 		return;
 	}
+
+	auto answer = ldns_pkt_answer(resp);
+	auto authority = ldns_pkt_authority(resp);
 
 	// synthesize the DS record(s)
 	auto ds_list = ldns_rr_list_new();
