@@ -23,7 +23,7 @@
 extern "C" {
 #endif
 
-void log_request(evldns_server_request *srq, const ldns_rdf *qname, ldns_rr_type qtype, ldns_rr_class qclass);
+void log_request(int fd, evldns_server_request *srq, const ldns_rdf *qname, ldns_rr_type qtype, ldns_rr_class qclass);
 
 #ifdef __cplusplus
 }

@@ -23,7 +23,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-void log_request(evldns_server_request *srq, const ldns_rdf *qname, ldns_rr_type qtype, ldns_rr_class qclass)
+void log_request(int fd, evldns_server_request *srq, const ldns_rdf *qname, ldns_rr_type qtype, ldns_rr_class qclass)
 {
 	struct timeval tv;
 	char *qname_str, *qclass_str, *qtype_str;
@@ -68,12 +68,11 @@ void log_request(evldns_server_request *srq, const ldns_rdf *qname, ldns_rr_type
 		srq->is_tcp ? "T": "",			// TCP
 		do_bit ? "D": "",				// DO
 		ldns_pkt_cd(req) ? "C" : "",	// CD
-		"",                                                                     // RDATA - not supported
+		"",
 		ldns_pkt_get_rcode(resp),		// RCODE
-		srq->wire_resplen);
+		srq->wire_response ? srq->wire_resplen : 0);
 
-	// log it here
-	write(1, logbuffer, n);
+	write(fd, logbuffer, n);
 	
 	free(qname_str);
 	free(qtype_str);
