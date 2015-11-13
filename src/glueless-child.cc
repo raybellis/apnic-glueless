@@ -30,9 +30,10 @@ protected:
 	const std::string		domain;
 	const std::string		zonefile;
 	const std::string		keyfile;
+	const std::string		logfile;
 
 public:
-	ChildZone(const std::string& domain, const std::string& zonefile, const std::string& keyfile);
+	ChildZone(const std::string& domain, const std::string& zonefile, const std::string& keyfile, const std::string& logfile);
 	~ChildZone();
 
 public:
@@ -50,8 +51,8 @@ public:
 	void sub_callback(ldns_pkt *resp, ldns_rdf *qname, ldns_rr_type qtype, bool dnssec_ok);
 };
 
-ChildZone::ChildZone(const std::string& domain, const std::string& zonefile, const std::string& keyfile)
-	: domain(domain), zonefile(zonefile), keyfile(keyfile)
+ChildZone::ChildZone(const std::string& domain, const std::string& zonefile, const std::string& keyfile, const std::string& logfile)
+	: domain(domain), zonefile(zonefile), keyfile(keyfile), logfile(logfile)
 {
 	origin = ldns_dname_new_frm_str(domain.c_str());
 	if (!origin) {
@@ -173,6 +174,8 @@ void ChildZone::main_callback(evldns_server_request *srq, ldns_rdf *qname, ldns_
 	} else {
 		srq->response = evldns_response(srq->request, LDNS_RCODE_REFUSED);
 	}
+
+	log_request(logfile.c_str(), srq, qname, qtype, LDNS_RR_CLASS_IN);
 }
 
 static void dispatch(evldns_server_request *srq, void *userdata, ldns_rdf *qname, ldns_rr_type qtype, ldns_rr_class qclass)
@@ -206,7 +209,9 @@ int main(int argc, char *argv[])
 	const char		*domain = "test.dotnxdomain.net";
 	const char		*zonefile = "data/zone.wild.test.dotnxdomain.net";
 	const char		*keyfile = "data/Ktest.dotnxdomain.net.private";
+	const char		*logfile = "./queries-child-%F.log";
 
+	--argc; ++argv;
 	while (argc > 0 && **argv == '-') {
 		char o = *++*argv;
 		switch (o) {
@@ -215,6 +220,7 @@ int main(int argc, char *argv[])
 			case 'd': --argc; domain = *++argv; break;
 			case 'z': --argc; zonefile = *++argv; break;
 			case 'k': --argc; keyfile = *++argv; break;
+			case 'l': --argc; logfile = *++argv; break;
 			case 'f': --argc; n_forks = atoi(*++argv); break;
 			default: exit(1);
 		}
@@ -222,7 +228,7 @@ int main(int argc, char *argv[])
 		++argv;
 	}
 
-	ChildZone		zone(domain, zonefile, keyfile);
+	ChildZone		zone(domain, zonefile, keyfile, logfile);
 	InstanceData	data = { bind_to_all(hostname, port, 100), &zone };
 
 	farm(n_forks, n_threads, start_instance, &data, 0);

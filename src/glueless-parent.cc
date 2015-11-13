@@ -24,12 +24,13 @@
 class ParentZone : public SignedZone {
 private:
 	ldns_dnssec_rrsets	*child_nsset = 0;
+	const std::string	 logfile;
 
 private:
 	ldns_rdf *get_child(ldns_rdf *qname, unsigned int& label_count);
 
 public:
-	ParentZone(const std::string& domain, const std::string& zonefile, const std::string& keyfile);
+	ParentZone(const std::string& domain, const std::string& zonefile, const std::string& keyfile, const std::string &logfile);
 	~ParentZone();
 
 private:
@@ -44,8 +45,9 @@ public:
 ParentZone::ParentZone(
 	const std::string& domain,
 	const std::string& zonefile,
-	const std::string& keyfile)
-  : SignedZone(domain, zonefile, keyfile)
+	const std::string& keyfile,
+	const std::string& logfile)
+  : SignedZone(domain, zonefile, keyfile), logfile(logfile)
 {
 	// the zone's OK to sign immediately
 	sign();
@@ -82,6 +84,8 @@ void ParentZone::main_callback(evldns_server_request *srq, ldns_rdf *qname, ldns
 
 	ldns_pkt_set_ancount(resp, ldns_rr_list_rr_count(answer));
 	ldns_pkt_set_nscount(resp, ldns_rr_list_rr_count(authority));
+
+	log_request(logfile.c_str(), srq, qname, qtype, LDNS_RR_CLASS_IN);
 }
 
 void ParentZone::apex_callback(ldns_rdf *qname, ldns_rr_type qtype, bool dnssec_ok, ldns_pkt *resp)
@@ -263,7 +267,9 @@ int main(int argc, char *argv[])
 	const char		*domain = "test.dotnxdomain.net";
 	const char		*zonefile = "data/zone.test.dotnxdomain.net";
 	const char		*keyfile = "data/Ktest.dotnxdomain.net.private";
+	const char		*logfile = "./queries-parent-%F.log";
 
+	--argc; ++argv;
 	while (argc > 0 && **argv == '-') {
 		char o = *++*argv;
 		switch (o) {
@@ -272,6 +278,7 @@ int main(int argc, char *argv[])
 			case 'd': --argc; domain = *++argv; break;
 			case 'z': --argc; zonefile = *++argv; break;
 			case 'k': --argc; keyfile = *++argv; break;
+			case 'l': --argc; logfile = *++argv; break;
 			case 'f': --argc; n_forks = atoi(*++argv); break;
 			default: exit(1);
 		}
@@ -279,7 +286,7 @@ int main(int argc, char *argv[])
 		++argv;
 	}
 
-	ParentZone		 zone(domain, zonefile, keyfile);
+	ParentZone		 zone(domain, zonefile, keyfile, logfile);
 	InstanceData	 data = { bind_to_all(hostname, port, 100), &zone };
 
 	farm(n_forks, n_threads, start_instance, &data, 0);

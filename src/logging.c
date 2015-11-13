@@ -18,12 +18,36 @@
 
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <time.h>
 #include <netdb.h>
 #include <evldns.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <fcntl.h>
 
-void log_request(int fd, evldns_server_request *srq, const ldns_rdf *qname, ldns_rr_type qtype, ldns_rr_class qclass)
+static int log_open(const char *fmt, time_t t)
+{
+	static int logfd = -1;
+	static time_t last = 0;
+
+	if (logfd < 0 || t > last) {
+		int newfd;
+		char path[_POSIX_PATH_MAX];
+		strftime(path, _POSIX_PATH_MAX, fmt, gmtime(&t));
+
+		newfd = open(path, O_CREAT | O_WRONLY | O_APPEND, 0644);
+		if (logfd >= 0) {
+			dup2(newfd, logfd);
+			close(newfd);
+		} else {
+			logfd = newfd;
+		}
+	}
+
+	return logfd;
+}
+
+void log_request(const char *fmt, evldns_server_request *srq, const ldns_rdf *qname, ldns_rr_type qtype, ldns_rr_class qclass)
 {
 	struct timeval tv;
 	char *qname_str, *qclass_str, *qtype_str;
@@ -72,7 +96,7 @@ void log_request(int fd, evldns_server_request *srq, const ldns_rdf *qname, ldns
 		ldns_pkt_get_rcode(resp),		// RCODE
 		srq->wire_response ? srq->wire_resplen : 0);
 
-	write(fd, logbuffer, n);
+	write(log_open(fmt, tv.tv_sec), logbuffer, n);
 	
 	free(qname_str);
 	free(qtype_str);

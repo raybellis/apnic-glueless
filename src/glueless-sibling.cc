@@ -24,9 +24,10 @@
 class SiblingZone : public Zone {
 private:
 	ldns_rdf			*wild;
+	const std::string	 logfile;
 
 public:
-	SiblingZone(const std::string& domain, const std::string& zonefile);
+	SiblingZone(const std::string& domain, const std::string& zonefile, const std::string& logfile);
 	~SiblingZone();
 
 public:
@@ -37,8 +38,9 @@ public:
 
 SiblingZone::SiblingZone(
 	const std::string& domain,
-	const std::string& zonefile)
-  : Zone(domain, zonefile)
+	const std::string& zonefile,
+	const std::string& logfile)
+  : Zone(domain, zonefile), logfile(logfile)
 {
 	wild = ldns_dname_new_frm_str("*");
 	ldns_dname_cat(wild, origin);
@@ -75,6 +77,8 @@ void SiblingZone::main_callback(evldns_server_request *srq, ldns_rdf *qname, ldn
 	ldns_pkt_set_ancount(resp, ldns_rr_list_rr_count(answer));
 	ldns_pkt_set_nscount(resp, ldns_rr_list_rr_count(authority));
 	ldns_pkt_set_aa(resp, 1);
+
+	log_request(logfile.c_str(), srq, qname, qtype, LDNS_RR_CLASS_IN);
 }
 
 void SiblingZone::apex_callback(ldns_rdf *qname, ldns_rr_type qtype, ldns_pkt *resp)
@@ -162,7 +166,9 @@ int main(int argc, char *argv[])
 	const char		*port = "53";
 	const char		*domain = "oob.dashnxdomain.net";
 	const char		*zonefile = "data/zone.oob.dashnxdomain.net";
+	const char		*logfile = "./queries-sibling-%F.log";
 
+	--argc; ++argv;
 	while (argc > 0 && **argv == '-') {
 		char o = *++*argv;
 		switch (o) {
@@ -170,6 +176,7 @@ int main(int argc, char *argv[])
 			case 'p': --argc; port = *++argv; break;
 			case 'd': --argc; domain = *++argv; break;
 			case 'z': --argc; zonefile = *++argv; break;
+			case 'l': --argc; logfile = *++argv; break;
 			case 'f': --argc; n_forks = atoi(*++argv); break;
 			default: exit(1);
 		}
@@ -177,7 +184,7 @@ int main(int argc, char *argv[])
 		++argv;
 	}
 
-	SiblingZone		zone(domain, zonefile);
+	SiblingZone		zone(domain, zonefile, logfile);
 	InstanceData	data = { bind_to_all(hostname, port, 100), &zone };
 
 	farm(n_forks, n_threads, start_instance, &data, 0);

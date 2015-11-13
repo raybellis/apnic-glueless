@@ -124,7 +124,7 @@ AC_TYPE_SIZE_T
 AC_CHECK_FUNCS([])
 
 # Enable extra warnings
-WARNING_FLAGS="-fdiagnostics-show-option -Wall -Wextra -Wno-unused-parameter -Wstrict-prototypes -Wundef -Wformat=2 -Wmissing-include-dirs -Wformat-nonliteral -Wold-style-definition -Wpointer-arith -Waggregate-return -Winit-self -Wpacked -Wc++-compat -Wno-long-long -Wno-overlength-strings -Wdeclaration-after-statement -Wredundant-decls -Wmissing-noreturn -Wshadow -Wendif-labels -Wcast-qual -Wwrite-strings -fno-common"
+WARNING_FLAGS="-fdiagnostics-show-option -Wall -Wextra -Wno-unused-parameter -Wstrict-prototypes -Wundef -Wmissing-include-dirs -Wold-style-definition -Wpointer-arith -Waggregate-return -Winit-self -Wpacked -Wc++-compat -Wno-long-long -Wno-overlength-strings -Wdeclaration-after-statement -Wredundant-decls -Wmissing-noreturn -Wshadow -Wendif-labels -Wcast-qual -Wwrite-strings -fno-common"
 for flag in $WARNING_FLAGS; do
   AS_COMPILER_FLAG([$flag], [CFLAGS="$CFLAGS $flag"])
 done
