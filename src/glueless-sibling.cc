@@ -163,6 +163,20 @@ int main(int argc, char *argv[])
 	const char		*domain = "oob.dashnxdomain.net";
 	const char		*zonefile = "data/zone.oob.dashnxdomain.net";
 
+	while (argc > 0 && **argv == '-') {
+		char o = *++*argv;
+		switch (o) {
+			case 'h': --argc; hostname = *++argv; break;
+			case 'p': --argc; port = *++argv; break;
+			case 'd': --argc; domain = *++argv; break;
+			case 'z': --argc; zonefile = *++argv; break;
+			case 'f': --argc; n_forks = atoi(*++argv); break;
+			default: exit(1);
+		}
+		--argc;
+		++argv;
+	}
+
 	SiblingZone		zone(domain, zonefile);
 	InstanceData	data = { bind_to_all(hostname, port, 100), &zone };
 

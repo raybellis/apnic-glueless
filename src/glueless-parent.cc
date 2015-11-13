@@ -255,6 +255,21 @@ int main(int argc, char *argv[])
 	const char		*zonefile = "data/zone.test.dotnxdomain.net";
 	const char		*keyfile = "data/Ktest.dotnxdomain.net.private";
 
+	while (argc > 0 && **argv == '-') {
+		char o = *++*argv;
+		switch (o) {
+			case 'h': --argc; hostname = *++argv; break;
+			case 'p': --argc; port = *++argv; break;
+			case 'd': --argc; domain = *++argv; break;
+			case 'z': --argc; zonefile = *++argv; break;
+			case 'k': --argc; keyfile = *++argv; break;
+			case 'f': --argc; n_forks = atoi(*++argv); break;
+			default: exit(1);
+		}
+		--argc;
+		++argv;
+	}
+
 	ParentZone		 zone(domain, zonefile, keyfile);
 	InstanceData	 data = { bind_to_all(hostname, port, 100), &zone };
 
