@@ -15,6 +15,7 @@
  */
 
 #include <stdexcept>
+#include <cstdio>
 
 #include "base.h"
 #include "utils.h"
@@ -95,6 +96,23 @@ void SiblingZone::apex_callback(ldns_rdf *qname, ldns_rr_type qtype, ldns_pkt *r
 	}
 }
 
+static void add_stuffing(ldns_rr_list *section, ldns_rdf *qname, int type, int len)
+{
+	uint8_t *data = (uint8_t*)malloc(len);
+	ldns_rr *rr = ldns_rr_new();
+	ldns_rdf *rdf = ldns_rdf_new(LDNS_RDF_TYPE_NONE, len, data);
+	for (unsigned int i = 0; i < len; ++i) {
+		data[i] = rand() & 0xff;
+	}
+
+	ldns_rr_set_owner(rr, ldns_rdf_clone(qname));
+	ldns_rr_set_type(rr, (ldns_rr_type) type);
+	ldns_rr_set_class(rr, LDNS_RR_CLASS_IN);
+	ldns_rr_set_ttl(rr, 600L);
+	ldns_rr_push_rdf(rr, rdf);
+	ldns_rr_list_push_rr(section, rr);
+}
+
 void SiblingZone::sub_callback(ldns_rdf *qname, ldns_rr_type qtype, ldns_pkt *resp)
 {
 	auto answer = ldns_pkt_answer(resp);
@@ -117,7 +135,14 @@ void SiblingZone::sub_callback(ldns_rdf *qname, ldns_rr_type qtype, ldns_pkt *re
 
 		// copy the entry, replacing the owner name with the question
 		if (rrsets) {
-			// TODO: add optional stuffing before the answer here
+			// add optional stuffing before the answer here
+			int prelen, pretype, postlen, posttype;
+			auto p = (char *)ldns_rdf_data(sub_label) + 1;
+			bool dostuff = sscanf(p, "%03x-%03x-%04x-%04x", &prelen, &postlen, &pretype, &posttype) == 4;
+
+			if (dostuff && prelen > 0) {
+				add_stuffing(answer, qname, pretype, prelen);
+			}
 
 			auto rrs = rrsets->rrs;
 			while (rrs) {
@@ -128,8 +153,10 @@ void SiblingZone::sub_callback(ldns_rdf *qname, ldns_rr_type qtype, ldns_pkt *re
 				rrs = rrs->next;
 			}
 
-			// TODO: add optional stuffing after the answer (or in other sections?)
-			// NULL RRTYPE?
+			// add optional stuffing after the answer (or in other sections?)
+			if (dostuff && postlen > 0) {
+				add_stuffing(answer, qname, posttype, postlen);
+			}
 		}
 	}
 
