@@ -64,7 +64,7 @@ ParentZone::ParentZone(
 	}
 
 	if (childkeyfile) {
-		childkeys = util_load_key(origin, keyfile.c_str());
+		childkeys = util_load_key(origin, childkeyfile);
 		if (!childkeys) {
 			throw std::runtime_error("child key file load failed");
 		}
