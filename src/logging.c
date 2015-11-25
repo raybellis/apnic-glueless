@@ -24,6 +24,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <limits.h>
 
 static int log_open(const char *fmt, time_t t)
 {
