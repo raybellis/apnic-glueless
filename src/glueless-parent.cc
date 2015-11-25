@@ -24,13 +24,14 @@
 class ParentZone : public SignedZone {
 private:
 	ldns_dnssec_rrsets	*child_nsset = 0;
+	ldns_key_list		*childkeys;
 	const std::string	 logfile;
 
 private:
 	ldns_rdf *get_child(ldns_rdf *qname, unsigned int& label_count);
 
 public:
-	ParentZone(const std::string& domain, const std::string& zonefile, const std::string& keyfile, const std::string &logfile);
+	ParentZone(const std::string& domain, const std::string& zonefile, const std::string& keyfile, const char *childkeyfile, const std::string &logfile);
 	~ParentZone();
 
 private:
@@ -46,6 +47,7 @@ ParentZone::ParentZone(
 	const std::string& domain,
 	const std::string& zonefile,
 	const std::string& keyfile,
+	const char *childkeyfile,
 	const std::string& logfile)
   : SignedZone(domain, zonefile, keyfile), logfile(logfile)
 {
@@ -60,10 +62,20 @@ ParentZone::ParentZone(
 	if (!child_nsset) {
 		throw std::runtime_error("zone should contain wildcard NS set");
 	}
+
+	if (childkeyfile) {
+		childkeys = util_load_key(origin, keyfile.c_str());
+		if (!childkeys) {
+			throw std::runtime_error("child key file load failed");
+		}
+	}
 }
 
 ParentZone::~ParentZone()
 {
+	if (childkeys) {
+		ldns_key_list_free(childkeys);
+	}
 }
 
 void ParentZone::main_callback(evldns_server_request *srq, ldns_rdf *qname, ldns_rr_type qtype)
@@ -179,8 +191,9 @@ void ParentZone::referral_callback(ldns_rdf *qname, ldns_rr_type qtype, bool dns
 
 	// synthesize the DS record(s)
 	auto ds_list = ldns_rr_list_new();
-	for (int i = 0, n = ldns_key_list_key_count(keys); i < n; ++i) {
-		auto key_rr = ldns_key2rr(ldns_key_list_key(keys, i));
+	auto ds_keys = childkeys ? childkeys : keys;
+	for (int i = 0, n = ldns_key_list_key_count(ds_keys); i < n; ++i) {
+		auto key_rr = ldns_key2rr(ldns_key_list_key(ds_keys, i));
 		LDNS_rr_replace_owner(key_rr, child);
 		auto ds = ldns_key_rr2ds(key_rr, LDNS_SHA1);
 		ldns_rr_list_push_rr(ds_list, ds);
@@ -268,6 +281,7 @@ int main(int argc, char *argv[])
 	const char		*zonefile = "data/zone.test.dotnxdomain.net";
 	const char		*keyfile = "data/Ktest.dotnxdomain.net.private";
 	const char		*logfile = "./queries-parent-%F.log";
+	const char		*childkeyfile = nullptr;
 
 	--argc; ++argv;
 	while (argc > 0 && **argv == '-') {
@@ -278,6 +292,7 @@ int main(int argc, char *argv[])
 			case 'd': --argc; domain = *++argv; break;
 			case 'z': --argc; zonefile = *++argv; break;
 			case 'k': --argc; keyfile = *++argv; break;
+			case 'c': --argc; childkeyfile = *++argv; break;
 			case 'l': --argc; logfile = *++argv; break;
 			case 'f': --argc; n_forks = atoi(*++argv); break;
 			default: exit(1);
@@ -286,7 +301,7 @@ int main(int argc, char *argv[])
 		++argv;
 	}
 
-	ParentZone		 zone(domain, zonefile, keyfile, logfile);
+	ParentZone		 zone(domain, zonefile, keyfile, childkeyfile, logfile);
 	InstanceData	 data = { bind_to_all(hostname, port, 100), &zone };
 
 	farm(n_forks, n_threads, start_instance, &data, 0);
