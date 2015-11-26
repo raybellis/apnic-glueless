@@ -44,6 +44,7 @@ static int log_open(const char *fmt, time_t t)
 			logfd = newfd;
 		}
 	}
+	last = t;
 
 	return logfd;
 }
