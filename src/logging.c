@@ -63,6 +63,9 @@ void log_request(const char *fmt, evldns_server_request *srq, const ldns_rdf *qn
 	req = srq->request;
 	resp = srq->response;
 
+	// convert packet to wire format to get its length
+	(void) ldns_pkt2wire(&srq->wire_response, resp, &srq->wire_resplen);
+
 	// request flags
 	edns = ldns_pkt_edns(req);
 	do_bit = edns && ldns_pkt_edns_do(req);
