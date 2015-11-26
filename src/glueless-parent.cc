@@ -25,13 +25,16 @@ class ParentZone : public SignedZone {
 private:
 	ldns_dnssec_rrsets	*child_nsset = 0;
 	ldns_key_list		*childkeys;
+	ldns_enum_hash		 algo;
 	const std::string	 logfile;
 
 private:
 	ldns_rdf *get_child(ldns_rdf *qname, unsigned int& label_count);
 
 public:
-	ParentZone(const std::string& domain, const std::string& zonefile, const std::string& keyfile, const char *childkeyfile, const std::string &logfile);
+	ParentZone(const std::string& domain, const std::string& zonefile,
+			   const std::string& keyfile, const char *childkeyfile,
+			   const std::string &logfile, ldns_enum_hash algo);
 	~ParentZone();
 
 private:
@@ -48,8 +51,9 @@ ParentZone::ParentZone(
 	const std::string& zonefile,
 	const std::string& keyfile,
 	const char *childkeyfile,
-	const std::string& logfile)
-  : SignedZone(domain, zonefile, keyfile), logfile(logfile)
+	const std::string& logfile,
+	ldns_enum_hash algo)
+  : SignedZone(domain, zonefile, keyfile), logfile(logfile), algo(algo)
 {
 	// the zone's OK to sign immediately
 	sign();
@@ -195,7 +199,7 @@ void ParentZone::referral_callback(ldns_rdf *qname, ldns_rr_type qtype, bool dns
 	for (int i = 0, n = ldns_key_list_key_count(ds_keys); i < n; ++i) {
 		auto key_rr = ldns_key2rr(ldns_key_list_key(ds_keys, i));
 		LDNS_rr_replace_owner(key_rr, child);
-		auto ds = ldns_key_rr2ds(key_rr, LDNS_SHA1);
+		auto ds = ldns_key_rr2ds(key_rr, algo);
 		ldns_rr_list_push_rr(ds_list, ds);
 		ldns_rr_free(key_rr);
 	}
@@ -282,6 +286,7 @@ int main(int argc, char *argv[])
 	const char		*keyfile = "data/Ktest.dotnxdomain.net.private";
 	const char		*logfile = "./queries-parent-%F.log";
 	const char		*childkeyfile = nullptr;
+	ldns_enum_hash	 algo = LDNS_SHA256;
 
 	--argc; ++argv;
 	while (argc > 0 && **argv == '-') {
@@ -295,13 +300,14 @@ int main(int argc, char *argv[])
 			case 'c': --argc; childkeyfile = *++argv; break;
 			case 'l': --argc; logfile = *++argv; break;
 			case 'f': --argc; n_forks = atoi(*++argv); break;
+			case 'a': --argc; algo = (ldns_enum_hash)atoi(*++argv); break;
 			default: exit(1);
 		}
 		--argc;
 		++argv;
 	}
 
-	ParentZone		 zone(domain, zonefile, keyfile, childkeyfile, logfile);
+	ParentZone		 zone(domain, zonefile, keyfile, childkeyfile, logfile, algo);
 	InstanceData	 data = { bind_to_all(hostname, port, 100), &zone };
 
 	farm(n_forks, n_threads, start_instance, &data, 0);
