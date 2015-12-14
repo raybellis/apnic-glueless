@@ -138,7 +138,7 @@ void SiblingZone::sub_callback(ldns_rdf *qname, ldns_rr_type qtype, ldns_pkt *re
 			// add optional stuffing before the answer here
 			int prelen, pretype, postlen, posttype;
 			auto p = (char *)ldns_rdf_data(sub_label) + 1;
-			bool dostuff = sscanf(p, "%03x-%03x-%04x-%04x", &prelen, &postlen, &pretype, &posttype) == 4;
+			bool dostuff = sscanf(p, "%03x-%03x-%04x-%04x-%*04x-", &prelen, &postlen, &pretype, &posttype) == 4;
 
 			if (dostuff && prelen > 0) {
 				add_stuffing(answer, qname, pretype, prelen);

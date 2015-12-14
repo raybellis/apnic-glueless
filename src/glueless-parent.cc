@@ -24,7 +24,7 @@
 class ParentZone : public SignedZone {
 private:
 	ldns_dnssec_rrsets	*child_nsset = 0;
-	ldns_key_list		*childkeys;
+	ldns_key_list		*childkeys = 0;
 	ldns_enum_hash		 algo;
 	const std::string	 logfile;
 
@@ -193,6 +193,11 @@ void ParentZone::referral_callback(ldns_rdf *qname, ldns_rr_type qtype, bool dns
 	auto answer = ldns_pkt_answer(resp);
 	auto authority = ldns_pkt_authority(resp);
 
+	// check for broken chain flag
+	unsigned int broken_chain = 0;
+	auto p = (char *)ldns_rdf_data(child) + 1;
+	(void)sscanf(p, "%*03x-%*03x-%*04x-%*04x-%04x-", &broken_chain);
+
 	// synthesize the DS record(s)
 	auto ds_list = ldns_rr_list_new();
 	auto ds_keys = childkeys ? childkeys : keys;
@@ -200,6 +205,12 @@ void ParentZone::referral_callback(ldns_rdf *qname, ldns_rr_type qtype, bool dns
 		auto key_rr = ldns_key2rr(ldns_key_list_key(ds_keys, i));
 		LDNS_rr_replace_owner(key_rr, child);
 		auto ds = ldns_key_rr2ds(key_rr, algo);
+		if (broken_chain) {
+			auto tag = (uint16_t *)ldns_rdf_data(ldns_rr_rdf(ds, 0));
+			auto hex = ldns_rdf_data(ldns_rr_rdf(ds, 3));
+			*tag ^= -1;
+			*hex ^= -1;
+		}
 		ldns_rr_list_push_rr(ds_list, ds);
 		ldns_rr_free(key_rr);
 	}
