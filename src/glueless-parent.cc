@@ -194,9 +194,10 @@ void ParentZone::referral_callback(ldns_rdf *qname, ldns_rr_type qtype, bool dns
 	auto authority = ldns_pkt_authority(resp);
 
 	// check for broken chain flag
-	unsigned int broken_chain = 0;
+	unsigned int flags = 0;
 	auto p = (char *)ldns_rdf_data(child) + 1;
-	(void)sscanf(p, "%*03x-%*03x-%*04x-%*04x-%04x-", &broken_chain);
+	(void)sscanf(p, "%*03x-%*03x-%*04x-%*04x-%04x-", &flags);
+	bool broken_chain = (flags & 0x0001);
 
 	// synthesize the DS record(s)
 	auto ds_list = ldns_rr_list_new();
