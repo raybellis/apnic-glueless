@@ -101,6 +101,7 @@ void ParentZone::main_callback(evldns_server_request *srq, ldns_rdf *qname, ldns
 	ldns_pkt_set_ancount(resp, ldns_rr_list_rr_count(answer));
 	ldns_pkt_set_nscount(resp, ldns_rr_list_rr_count(authority));
 
+	truncation_check(srq);
 	log_request(logfile.c_str(), srq, qname, qtype, LDNS_RR_CLASS_IN);
 }
 

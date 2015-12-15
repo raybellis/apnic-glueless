@@ -18,8 +18,8 @@
 #define __BASE_H
 
 #include <string>
-
 #include <evldns.h>
+#include "evutils.h"
 
 class EVLDNSBase {
 

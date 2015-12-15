@@ -124,3 +124,11 @@ void LDNS_rr_wildcard_substitute(ldns_rr *rr, ldns_rdf *replace)
 		}
 	}
 }
+
+void LDNS_rr_list_empty_rr_list(ldns_rr_list *rr_list)
+{
+	size_t rr_count = ldns_rr_list_rr_count(rr_list);
+	while (rr_count--) {
+		ldns_rr_free(ldns_rr_list_pop_rr(rr_list));
+	}
+}

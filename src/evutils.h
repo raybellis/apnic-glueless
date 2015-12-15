@@ -28,6 +28,8 @@ void query_check(evldns_server_request *srq, void* /* user_data */,
 				 ldns_rr_type qtype,
 				 ldns_rr_class qclass);
 
+void truncation_check(evldns_server_request *srq);
+
 #ifdef __cplusplus
 }
 #endif

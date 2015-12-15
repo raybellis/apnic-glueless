@@ -32,6 +32,7 @@ void LDNS_rr_list_cat_dnssec_rrs_clone(ldns_rr_list *rr_list, ldns_dnssec_rrs *r
 void LDNS_rr_list_cat_rr_list_clone(ldns_rr_list *dst, ldns_rr_list *src);
 void LDNS_rr_replace_owner(ldns_rr *rr, ldns_rdf *new_owner);
 void LDNS_rr_wildcard_substitute(ldns_rr *rr, ldns_rdf *replace);
+void LDNS_rr_list_empty_rr_list(ldns_rr_list *rr_list);
 
 #ifdef __cplusplus
 }

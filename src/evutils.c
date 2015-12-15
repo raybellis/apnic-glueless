@@ -15,6 +15,7 @@
  */
 
 #include "evutils.h"
+#include "utils.h"
 
 void query_check(evldns_server_request *srq,
 				 ATTR_UNUSED(void *user_data),
@@ -53,4 +54,55 @@ void query_check(evldns_server_request *srq,
 		srq->response = evldns_response(req, LDNS_RCODE_NOTIMPL);
 		return;
 	}
+}
+
+void truncation_check(evldns_server_request *srq)
+{
+	ldns_pkt *req = srq->request;
+	ldns_pkt *resp = srq->response;
+	unsigned int bufsize = 512;
+
+	/* if it's TCP, business as usual */
+	if (srq->is_tcp) {
+		return;
+	}
+
+	/* otherwise, convert to wire format */
+	(void) ldns_pkt2wire(&srq->wire_response, resp, &srq->wire_resplen);
+
+	/* if it's under the RFC 1035 limit, we're OK */
+	if (srq->wire_resplen <= bufsize) {
+		return;
+	}
+
+	/* if the client used EDNS, use that new bufsize */
+	if (ldns_pkt_edns(req)) {
+		unsigned int ednssize = ldns_pkt_edns_udp_size(req);
+		if (ednssize > bufsize) {
+			bufsize = ednssize;
+		}
+
+		/* it fits - we're OK */
+		if (srq->wire_resplen <= bufsize) {
+			return;
+		}
+	}
+
+	/*
+	 * if we got here, it didn't fit - throw away the
+	 * existing wire buffer and the non-question sections
+	 */
+	free(srq->wire_response);
+	LDNS_rr_list_empty_rr_list(ldns_pkt_additional(resp));
+	LDNS_rr_list_empty_rr_list(ldns_pkt_authority(resp));
+	LDNS_rr_list_empty_rr_list(ldns_pkt_answer(resp));
+
+	/* set the TC bit and reset section counts */
+	ldns_pkt_set_tc(resp, true);
+	ldns_pkt_set_ancount(resp, 0);
+	ldns_pkt_set_nscount(resp, 0);
+	ldns_pkt_set_arcount(resp, 0);
+
+	/* and convert to wire format again */
+	(void) ldns_pkt2wire(&srq->wire_response, resp, &srq->wire_resplen);
 }

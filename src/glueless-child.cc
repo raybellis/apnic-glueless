@@ -175,6 +175,7 @@ void ChildZone::main_callback(evldns_server_request *srq, ldns_rdf *qname, ldns_
 		srq->response = evldns_response(srq->request, LDNS_RCODE_REFUSED);
 	}
 
+	truncation_check(srq);
 	log_request(logfile.c_str(), srq, qname, qtype, LDNS_RR_CLASS_IN);
 }
 

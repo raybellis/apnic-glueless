@@ -17,7 +17,6 @@
 #include <stdexcept>
 
 #include "base.h"
-#include "evutils.h"
 #include "utils.h"
 
 EVLDNSBase::EVLDNSBase(const int *fds)
