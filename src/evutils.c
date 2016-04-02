@@ -67,8 +67,10 @@ void truncation_check(evldns_server_request *srq)
 		return;
 	}
 
-	/* otherwise, convert to wire format */
-	(void) ldns_pkt2wire(&srq->wire_response, resp, &srq->wire_resplen);
+	/* otherwise, convert to wire format, if necessary */
+	if (!srq->wire_response) {
+		(void) ldns_pkt2wire(&srq->wire_response, resp, &srq->wire_resplen);
+	}
 
 	/* if it's under the RFC 1035 limit, we're OK */
 	if (srq->wire_resplen <= bufsize) {
