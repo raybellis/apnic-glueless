@@ -97,8 +97,12 @@ void SiblingZone::apex_callback(ldns_rdf *qname, ldns_rr_type qtype, ldns_pkt *r
 	}
 }
 
-static void add_stuffing(ldns_rr_list *section, ldns_rdf *qname, int type, int len)
+static void add_stuffing(ldns_rr_list *section, ldns_rdf *qname, unsigned int type, unsigned int len)
 {
+	if (len > 8192) {
+		return;
+	}
+
 	uint8_t *data = (uint8_t*)malloc(len);
 	ldns_rr *rr = ldns_rr_new();
 	ldns_rdf *rdf = ldns_rdf_new(LDNS_RDF_TYPE_NONE, len, data);
@@ -137,7 +141,7 @@ void SiblingZone::sub_callback(ldns_rdf *qname, ldns_rr_type qtype, ldns_pkt *re
 		// copy the entry, replacing the owner name with the question
 		if (rrsets) {
 			// add optional stuffing before the answer here
-			int prelen, pretype, postlen, posttype;
+			unsigned int prelen, pretype, postlen, posttype;
 			auto p = (char *)ldns_rdf_data(sub_label) + 1;
 			bool dostuff = sscanf(p, "%03x-%03x-%04x-%04x-%*04x-", &prelen, &postlen, &pretype, &posttype) == 4;
 
