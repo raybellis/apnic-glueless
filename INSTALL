@@ -7,6 +7,8 @@ Dependencies:
 To build from Git:
 
 % autoreconf --install
+# In Mac OS X with libraries installed via Homebrew:
+# LDFLAGS=-L/usr/local/opt/openssl/lib CPPFLAGS=-I/usr/local/opt/openssl/include ./configure --with-ldns=<path...> --with-evldns=<path...>
 % ./configure --with-ldns=<path...> --with-evldns=<path...>
 % make
 
