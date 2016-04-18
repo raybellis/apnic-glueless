@@ -205,7 +205,8 @@ int main(int argc, char *argv[])
 {
 	int				n_forks = 4;
 	int				n_threads = 0;
-	const char    hostnames[10]; // Max # IPaddresses to bind to = 10, simpler
+	// Max # IPaddresses to bind to = 10, simpler
+	const char *hostnames[10]={NULL,};
   int num_hosts = 0;
 	const char		*port = "53";
 	const char		*domain = "test.dotnxdomain.net";
@@ -226,7 +227,6 @@ int main(int argc, char *argv[])
 					exit(1);
 				}
 				break;
-			case 'h': --argc; hostname = *++argv; break;
 			case 'p': --argc; port = *++argv; break;
 			case 'd': --argc; domain = *++argv; break;
 			case 'z': --argc; zonefile = *++argv; break;
