@@ -17,6 +17,7 @@
 #ifndef __BASE_H
 #define __BASE_H
 
+#include <vector>
 #include <string>
 #include <evldns.h>
 #include "evutils.h"
@@ -28,10 +29,15 @@ private:
 	evldns_server		*ev_server;
 
 public:
-	EVLDNSBase(const int *fds);
+	typedef std::vector<int *>	vfds;
+
+public:
+	EVLDNSBase(const vfds& vfds);
 	~EVLDNSBase();
 
 public:
+	static vfds bind_to_all(const std::vector<const char *>& hostnames, const char *port, int backlog);
+
 	void add_callback(evldns_callback callback, void *userdata);
 	void start();
 };
