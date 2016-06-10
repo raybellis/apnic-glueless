@@ -121,9 +121,27 @@ void DynamicZone::apex_callback(ldns_pkt *resp, ldns_rdf *qname, ldns_rr_type qt
 	auto answer = ldns_pkt_answer(resp);
 	auto authority = ldns_pkt_authority(resp);
 	auto rrsets = ldns_dnssec_zone_find_rrset(zone, qname, qtype);
+	ldns_rr *new_sig;
+	ldns_rdf * rdata;
 	if (rrsets) {
 		LDNS_rr_list_cat_dnssec_rrs_clone(answer, rrsets->rrs);
 		if (dnssec_ok) {
+			while (1) {
+				# Create fake signatures to pad the child response
+				# 1) Clone an existing RRSIG
+				new_sig = ldns_rr_clone (rrsets->signatures);
+				# 2) get the RDATA
+				rdata = ldns_rr_rdf(new_sig, 8;
+				# 3) Mangle it at random
+				new_sig._data[0] = rand() % 25 + 65 // 65-90 = A-Z
+				new_sig._data[1] = rand() % 25 + 65 // 65-90 = A-Z
+				new_sig._data[2] = rand() % 25 + 65 // 65-90 = A-Z
+				new_sig._data[3] = rand() % 25 + 65 // 65-90 = A-Z
+				# 4) Put the mangled data in place of the previous RDATA
+				ldns_rr_set_rdf	(new_sig, rdata, 8);
+				# Add the new RRSIG to the end of the existing RRSIGs
+				ldns_dnssec_rrs_add_rr	(	rrsets->signatures,  	rr);
+			}
 			LDNS_rr_list_cat_dnssec_rrs_clone(answer, rrsets->signatures);
 		}
 	} else {
