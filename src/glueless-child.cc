@@ -21,6 +21,9 @@
 #include "process.h"
 #include "logging.h"
 
+// Global variable
+int	n_sigs = 0;
+
 class ChildZone {
 
 	ldns_rdf				*origin;
@@ -122,25 +125,36 @@ void DynamicZone::apex_callback(ldns_pkt *resp, ldns_rdf *qname, ldns_rr_type qt
 	auto authority = ldns_pkt_authority(resp);
 	auto rrsets = ldns_dnssec_zone_find_rrset(zone, qname, qtype);
 	ldns_rr *new_sig;
-	ldns_rdf * rdata;
+	ldns_dnssec_rrs *new_rrsig;
+	ldns_rdf *rdata_sig;
+	ldns_rdf *rdata_keyid;
+	uint8_t *data_field;
+	
+	auto my_sigs = n_sigs;
+	
 	if (rrsets) {
 		LDNS_rr_list_cat_dnssec_rrs_clone(answer, rrsets->rrs);
 		if (dnssec_ok) {
-			while (1) {
-				# Create fake signatures to pad the child response
-				# 1) Clone an existing RRSIG
-				new_sig = ldns_rr_clone (rrsets->signatures);
-				# 2) get the RDATA
-				rdata = ldns_rr_rdf(new_sig, 8;
-				# 3) Mangle it at random
-				new_sig._data[0] = rand() % 25 + 65 // 65-90 = A-Z
-				new_sig._data[1] = rand() % 25 + 65 // 65-90 = A-Z
-				new_sig._data[2] = rand() % 25 + 65 // 65-90 = A-Z
-				new_sig._data[3] = rand() % 25 + 65 // 65-90 = A-Z
-				# 4) Put the mangled data in place of the previous RDATA
-				ldns_rr_set_rdf	(new_sig, rdata, 8);
-				# Add the new RRSIG to the end of the existing RRSIGs
-				ldns_dnssec_rrs_add_rr	(	rrsets->signatures,  	rr);
+			while (my_sigs) {
+				// Create fake signatures to pad the child response
+				// 1) Clone the existing RRSIG
+				new_sig = ldns_rr_clone((rrsets->signatures)->rr);
+				// 2) get the SIG DATA
+				rdata_sig = ldns_rr_rdf(new_sig, 8);
+				data_field = (uint8_t *)rdata_sig->_data;
+				// 3) Mangle the first four bytes at random
+				data_field[0] = rand() % 25 + 65; // 65-90 = A-Z
+				data_field[1] = rand() % 25 + 65; // 65-90 = A-Z
+				data_field[2] = rand() % 25 + 65; // 65-90 = A-Z
+				data_field[3] = rand() % 25 + 65; // 65-90 = A-Z
+				// 3) Get the KEYID
+				rdata_keyid = ldns_rr_rdf(new_sig, 6);
+				data_field = (uint8_t *)rdata_keyid->_data;
+				// 4) Change the KeyID randonly
+				data_field[0] = rand() % 255;
+				// 4) Put the mangled data in place of the previous RDATA
+				ldns_dnssec_rrs_add_rr (rrsets->signatures, new_sig);
+				my_sigs--;
 			}
 			LDNS_rr_list_cat_dnssec_rrs_clone(answer, rrsets->signatures);
 		}
@@ -241,6 +255,7 @@ int main(int argc, char *argv[])
 			case 'k': --argc; keyfile = *++argv; break;
 			case 'l': --argc; logfile = *++argv; break;
 			case 'f': --argc; n_forks = atoi(*++argv); break;
+			case 's': --argc; n_sigs = atoi(*++argv); break;
 			default: exit(1);
 		}
 		--argc;
