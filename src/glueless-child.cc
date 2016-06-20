@@ -47,7 +47,7 @@ public:
 
 public:
 	void main_callback(evldns_server_request *srq, ldns_rdf *qname, ldns_rr_type qtype);
-	void apex_callback(ldns_pkt *resp, ldns_rdf *qname, ldns_rr_type qtype, bool dnssec_ok);
+	void apex_callback(ldns_pkt *resp, ldns_rdf *qname, ldns_rr_type qtype, bool dnssec_ok, int pad_adj);
 	void sub_callback(ldns_pkt *resp, ldns_rdf *qname, ldns_rr_type qtype, bool dnssec_ok);
 };
 
@@ -103,9 +103,17 @@ void DynamicZone::main_callback(evldns_server_request *srq, ldns_rdf *qname, ldn
 	auto answer = ldns_pkt_answer(resp);
 	auto authority = ldns_pkt_authority(resp);
 	bool dnssec_ok = ldns_pkt_edns_do(req);
+	char host[NI_MAXHOST], port[NI_MAXSERV];
+	int pad_adj = 0;
 
 	if (ldns_dname_compare(qname, origin) == 0) {
-		apex_callback(resp, qname, qtype, dnssec_ok);
+    // Determine the client's address family in order to derive whether the
+		// query at the sibling was for an A or a AAAA RR and adjust the padding
+		// later on
+		if (((struct sockaddr *)&srq->addr)->sa_family == AF_INET6) {
+			pad_adj = 12;
+		}
+		apex_callback(resp, qname, qtype, dnssec_ok, pad_adj);
 	} else if (ldns_dname_is_subdomain(qname, origin)) {
 		sub_callback(resp, qname, qtype, dnssec_ok);
 	} else {
@@ -116,14 +124,71 @@ void DynamicZone::main_callback(evldns_server_request *srq, ldns_rdf *qname, ldn
 	ldns_pkt_set_nscount(resp, ldns_rr_list_rr_count(authority));
 }
 
-void DynamicZone::apex_callback(ldns_pkt *resp, ldns_rdf *qname, ldns_rr_type qtype, bool dnssec_ok)
+static ldns_rr* add_stuffing(ldns_rr *old_sig, ldns_rdf *qname, unsigned int type, unsigned int len)
+{
+	if (len > 8192) {
+		return NULL;
+	}
+
+	/* The Child response without padding already includes a response and an
+	RRSIG. In the case of a DNSKEY response with a padding bogus RRSIG in order
+	for the total size to be the same as the size of the response from the
+	sibling, the padding value needs to be reduced by 460 (0x1cc) bytes. */
+	len -= 460;
+	if (len < 0) {
+		return NULL;
+	}
+
+	uint8_t *data = (uint8_t*)malloc(len);
+	ldns_rr *new_sig = ldns_rr_clone(old_sig);
+		
+	// Adjust fields
+	// Change the algorithm to some imaginary number
+	auto rdata_alg = ldns_rr_rdf(new_sig, 1);
+	auto data_field = (uint8_t *)rdata_alg->_data;
+	data_field[0] = 42;
+	// Change the KEYID
+	auto rdata_keyid = ldns_rr_rdf(new_sig, 6);
+	data_field = (uint8_t *)rdata_keyid->_data;
+	data_field[0] = rand() % 255;
+	// Create a bunch of random data as the new signature
+	for (unsigned int i = 0; i < len; ++i) {
+		data[i] = rand() & 0xff;
+	}
+	// put the new signature in place
+	ldns_rdf *rdf = ldns_rdf_new(LDNS_RDF_TYPE_NONE, len, data);
+	ldns_rr_set_rdf(new_sig, rdf, 8);
+	
+	return new_sig;
+}
+
+void DynamicZone::apex_callback(ldns_pkt *resp, ldns_rdf *qname, ldns_rr_type qtype, bool dnssec_ok, int pad_adj)
 {
 	auto answer = ldns_pkt_answer(resp);
 	auto authority = ldns_pkt_authority(resp);
 	auto rrsets = ldns_dnssec_zone_find_rrset(zone, qname, qtype);
+	ldns_rr *new_sig;
+	ldns_dnssec_rrs *new_rrsig;
+	ldns_rdf *rdata_sig;
+	ldns_rdf *rdata_keyid;
+	uint8_t *data_field;
+
 	if (rrsets) {
 		LDNS_rr_list_cat_dnssec_rrs_clone(answer, rrsets->rrs);
 		if (dnssec_ok) {
+			// add optional padding in the form of an arbitrary, fake, RRSIG
+			// Get the parameters from the qname
+			auto sub_label = ldns_dname_label(qname, 0);
+			
+			// Create fake signatures to pad the child response
+			unsigned int prelen, pretype, postlen, posttype;
+			auto p = (char *)ldns_rdf_data(sub_label) + 1;
+			bool dostuff = sscanf(p, "%03x-%03x-%04x-%04x-%*04x-", &prelen, &postlen, &pretype, &posttype) == 4;
+
+			if (dostuff && (prelen > 0 || postlen > 0)) {
+				new_sig = add_stuffing((rrsets->signatures)->rr, qname, LDNS_RR_TYPE_RRSIG, prelen+postlen+pad_adj);
+				ldns_dnssec_rrs_add_rr(rrsets->signatures, new_sig);
+			}
 			LDNS_rr_list_cat_dnssec_rrs_clone(answer, rrsets->signatures);
 		}
 	} else {
